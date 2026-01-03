@@ -31,6 +31,8 @@ export interface OrchestratorConfig {
     apiKey: string;
     /** CLI 경로 (authMethod='cli'일 때만 사용) */
     cliPath?: string;
+    /** CLI 실패 시 API 키로 자동 전환 (하이브리드 모드) */
+    fallbackToApiKey?: boolean;
   };
   /** Agent 설정 */
   agents: {
@@ -77,6 +79,7 @@ export const defaultConfig: OrchestratorConfig = {
     authMethod: (process.env.LLM_AUTH_METHOD as LlmAuthMethod) || 'api-key',
     apiKey: process.env.ANTHROPIC_API_KEY || '',
     cliPath: process.env.CLAUDE_CLI_PATH || 'claude',
+    fallbackToApiKey: process.env.LLM_FALLBACK_TO_API_KEY === 'true',
   },
   agents: {
     planner: {

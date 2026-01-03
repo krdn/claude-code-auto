@@ -16,7 +16,7 @@ import type {
   SKILL_CONFIGS,
 } from '../types/skill.js';
 import { GitClient } from '../git/git-client.js';
-import { AnthropicClient } from '../llm/anthropic-client.js';
+import { LlmClient } from '../llm/llm-client.js';
 import { PromptBuilder } from '../llm/prompt-builder.js';
 import { config } from '../config/index.js';
 
@@ -47,7 +47,7 @@ export class SkillExecutor {
   private status: SkillStatus = 'idle';
   private currentSkill: SkillName | null = null;
   private gitClient: GitClient;
-  private llmClient: AnthropicClient;
+  private llmClient: LlmClient;
   private promptBuilder: PromptBuilder;
 
   constructor(skillConfig: Partial<SkillExecutorConfig> = {}) {
@@ -56,8 +56,12 @@ export class SkillExecutor {
     // Git 클라이언트 초기화
     this.gitClient = new GitClient(this.config.workingDir);
 
-    // LLM 클라이언트 초기화
-    this.llmClient = new AnthropicClient(config.llm.apiKey);
+    // LLM 클라이언트 초기화 (설정에 따라 API 키 또는 CLI 방식)
+    this.llmClient = new LlmClient({
+      authMethod: config.llm.authMethod,
+      apiKey: config.llm.apiKey,
+      cliPath: config.llm.cliPath,
+    });
 
     // 프롬프트 빌더 초기화
     this.promptBuilder = new PromptBuilder(config.promptsDir);

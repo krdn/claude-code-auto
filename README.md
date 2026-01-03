@@ -20,23 +20,63 @@ Claude Code 중심의 AI 개발 워크플로우 프레임워크입니다. 계획
 
 ### 주요 구현 사항
 - ✅ **LLM 통합**: Anthropic Claude API (Opus 4, Sonnet 4, Haiku 4)
+- ✅ **CLI 인증**: Claude Max Plan 구독으로 무제한 사용 ($20/월)
+- ✅ **하이브리드 모드**: CLI 실패 시 API 키로 자동 폴백
 - ✅ **Git 자동화**: 실제 Git 작업 (status, diff, add, commit)
 - ✅ **프롬프트 시스템**: prompts/ 폴더로 프롬프트 분리 및 템플릿화
 - ✅ **설정 관리**: 환경별 설정 (dev/prod), .env 지원
 - ✅ **AgentExecutor**: Planner, Coder, Reviewer 모두 실제 LLM 호출
 - ✅ **SkillExecutor**: commit 스킬 실제 구현 (LLM 생성 커밋 메시지)
 
-### 빠른 시작
+### 🔑 인증 방식 선택
+
+AI Orchestrator는 두 가지 LLM 인증 방식을 지원합니다:
+
+| 방식 | 비용 | 설정 난이도 | 추천 대상 |
+|------|------|------------|----------|
+| **API 키** | 사용량 기반 ($60-120/월) | 쉬움 | 프로덕션, 대규모 사용 |
+| **CLI (Max Plan)** | 고정 $20/월 | 중간 | 개발/테스트, 개인 프로젝트 |
+
+#### 방식 1: API 키 (권장)
 ```bash
 # 1. API 키 설정
 cp .env.example .env
-# ANTHROPIC_API_KEY를 실제 키로 수정
+# .env 파일에서 다음 설정:
+# LLM_AUTH_METHOD=api-key
+# ANTHROPIC_API_KEY=sk-ant-your-key-here
 
 # 2. 빌드 및 테스트
 npm run build
 npm test
+```
 
-# 3. 실제 LLM 사용 (config/default.ts에서 simulate: false로 변경)
+#### 방식 2: Claude CLI (Max Plan 구독자)
+```bash
+# 1. Claude Code CLI 설치 확인
+claude --version
+
+# 2. 환경 설정
+cp .env.example .env
+# .env 파일에서 다음 설정:
+# LLM_AUTH_METHOD=cli
+# CLAUDE_CLI_PATH=claude
+
+# 3. 빌드 및 테스트
+npm run build
+npm test
+```
+
+**상세 가이드**: [CLI 인증 설정 가이드](./docs/MAX_PLAN_SETUP.md)
+
+#### 하이브리드 모드 (권장)
+CLI와 API 키를 함께 설정하면, CLI 실패 시 자동으로 API 키로 전환됩니다:
+
+```bash
+# .env 설정
+LLM_AUTH_METHOD=cli
+CLAUDE_CLI_PATH=claude
+ANTHROPIC_API_KEY=sk-ant-your-key-here  # 폴백용
+LLM_FALLBACK_TO_API_KEY=true
 ```
 
 **다음 단계**: [Phase 2 로드맵](#phase-2-확장-예정) 참조
@@ -296,6 +336,7 @@ npm run dev
 - [Conventions](./docs/conventions.md) - 코딩 규칙
 - [Workflow Guide](./docs/workflow.md) - 작업 흐름 상세
 - [Branch Protection](./docs/BRANCH_PROTECTION.md) - 브랜치 보호 설정
+- [CLI 인증 설정](./docs/MAX_PLAN_SETUP.md) - Claude Max Plan 사용 가이드
 
 ### 외부 링크
 - [GitHub Wiki](https://github.com/krdn/claude-code-auto/wiki)

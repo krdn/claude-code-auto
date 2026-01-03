@@ -18,6 +18,8 @@ export interface LlmClientConfig {
   apiKey?: string;
   /** CLI 경로 (authMethod='cli'일 때 사용) */
   cliPath?: string;
+  /** CLI 실패 시 API 키로 폴백 (하이브리드 모드) */
+  fallbackToApiKey?: boolean;
 }
 
 /**
@@ -27,10 +29,13 @@ export interface LlmClientConfig {
  */
 export class LlmClient {
   private client: AnthropicClient | ClaudeCliClient;
+  private fallbackClient?: AnthropicClient;
   private readonly authMethod: LlmAuthMethod;
+  private readonly fallbackEnabled: boolean;
 
   constructor(config: LlmClientConfig) {
     this.authMethod = config.authMethod;
+    this.fallbackEnabled = config.fallbackToApiKey || false;
 
     if (config.authMethod === 'api-key') {
       // API 키 방식
@@ -40,14 +45,30 @@ export class LlmClient {
       // CLI 방식
       const cliPath = config.cliPath || 'claude';
       this.client = new ClaudeCliClient(cliPath);
+
+      // 하이브리드 모드: API 키 폴백 클라이언트 준비
+      if (this.fallbackEnabled && config.apiKey) {
+        this.fallbackClient = new AnthropicClient(config.apiKey);
+      }
     }
   }
 
   /**
-   * LLM 완성 요청
+   * LLM 완성 요청 (하이브리드 모드 지원)
    */
   async complete(params: CompleteParams): Promise<string> {
-    return await this.client.complete(params);
+    try {
+      // 주 클라이언트로 시도
+      return await this.client.complete(params);
+    } catch (error) {
+      // CLI 실패 시 API 키로 폴백
+      if (this.fallbackEnabled && this.fallbackClient) {
+        console.warn('[LlmClient] CLI 실패, API 키로 폴백:', error instanceof Error ? error.message : error);
+        return await this.fallbackClient.complete(params);
+      }
+      // 폴백 불가능하면 에러 전파
+      throw error;
+    }
   }
 
   /**
