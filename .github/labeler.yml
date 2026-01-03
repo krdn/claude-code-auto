@@ -1,0 +1,63 @@
+# Auto-labeling configuration
+# https://github.com/actions/labeler
+
+# Type labels based on file changes
+type:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '*.md'
+          - 'README*'
+
+type:ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - '*.yml'
+          - '*.yaml'
+
+type:test:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tests/**'
+          - '**/*.test.ts'
+          - '**/*.spec.ts'
+          - 'vitest.config.*'
+
+type:config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '*.config.*'
+          - '.*rc*'
+          - 'tsconfig*.json'
+          - 'package.json'
+
+type:source:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**'
+
+type:agents:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'agents/**'
+
+type:skills:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'skills/**'
+
+type:workflows:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'workflows/**'
+
+# Security related changes
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/auth/**'
+          - '**/crypto/**'
+          - '**/security/**'
+          - '**/*secret*'
+          - '**/*token*'
