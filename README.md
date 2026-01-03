@@ -1,6 +1,271 @@
-# claude-code-auto
+# AI Orchestrator Framework
 
-Claude Code 자동화 및 활용 프로젝트
+[![CI Pipeline](https://github.com/krdn/claude-code-auto/actions/workflows/ci.yml/badge.svg)](https://github.com/krdn/claude-code-auto/actions/workflows/ci.yml)
+[![PR Validation](https://github.com/krdn/claude-code-auto/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/krdn/claude-code-auto/actions/workflows/pr-validation.yml)
+
+> **AI가 개발의 전 과정을 수행하고, 사용자가 오케스트레이터로서 감독하는 협업 체계**
+
+Claude Code 중심의 AI 개발 워크플로우 프레임워크입니다. 계획 → 승인 → 실행 → 검증의 체계적인 개발 프로세스를 제공합니다.
+
+---
+
+## Quick Start
+
+```bash
+# 1. 저장소 클론
+git clone https://github.com/krdn/claude-code-auto.git
+cd claude-code-auto
+
+# 2. 의존성 설치
+npm install
+
+# 3. 개발 시작
+# Claude Code에서 CLAUDE.md를 읽고 작업을 시작합니다
+```
+
+---
+
+## 핵심 원칙
+
+| # | 원칙 | 설명 |
+|---|------|------|
+| 1 | **명확한 규칙** | 모호한 명령 금지, 모든 규칙을 문서화 |
+| 2 | **자동화된 검증** | AI 결과물은 자동 테스트로 검증 |
+| 3 | **승인 기반 실행** | AI 계획 → 사용자 승인 → 실행 |
+| 4 | **맥락 중심** | AI가 전체 시스템을 이해할 수 있는 구조 |
+
+---
+
+## 에이전트 (Agents)
+
+AI 작업은 3단계 에이전트 체계로 수행됩니다.
+
+| Agent | 역할 | 트리거 | 파일 |
+|-------|------|--------|------|
+| **Planner** | 계획 수립 | `/plan`, 새 기능 요청 | [`agents/planner/AGENT.md`](./agents/planner/AGENT.md) |
+| **Coder** | 코드 작성 | 계획 승인 후 자동 | [`agents/coder/AGENT.md`](./agents/coder/AGENT.md) |
+| **Reviewer** | 코드 리뷰 | 구현 완료 후 자동 | [`agents/reviewer/AGENT.md`](./agents/reviewer/AGENT.md) |
+
+---
+
+## 스킬 (Skills)
+
+재사용 가능한 작업 절차입니다.
+
+| Skill | 용도 | 명령어 | 파일 |
+|-------|------|--------|------|
+| **interview** | 기획 인터뷰 및 요구사항 수집 | `/interview` | [`skills/interview/SKILL.md`](./skills/interview/SKILL.md) |
+| **commit** | Git 커밋 메시지 작성 및 커밋 | `/commit` | [`skills/commit/SKILL.md`](./skills/commit/SKILL.md) |
+| **test** | 테스트 실행 및 분석 | `/test` | [`skills/test/SKILL.md`](./skills/test/SKILL.md) |
+| **review-pr** | Pull Request 리뷰 | `/review-pr` | [`skills/review-pr/SKILL.md`](./skills/review-pr/SKILL.md) |
+| **deploy** | 배포 프로세스 | `/deploy` | [`skills/deploy/SKILL.md`](./skills/deploy/SKILL.md) |
+| **docs** | 문서 자동 생성 | `/docs` | [`skills/docs/SKILL.md`](./skills/docs/SKILL.md) |
+
+---
+
+## 워크플로우
+
+### 기본 흐름
+
+```
+사용자 요청
+    │
+    ▼
+┌─────────────────────────────────────┐
+│  Planner Agent - 계획 수립          │
+│  • 요청 분석 • 영향 범위 파악        │
+└───────────────┬─────────────────────┘
+                ▼
+        [사용자 승인 대기]
+         승인(Y) / 거부(N)
+                │
+                ▼ (승인)
+┌─────────────────────────────────────┐
+│  Coder Agent - 구현                 │
+│  • 코드 작성 • 테스트 코드 포함      │
+└───────────────┬─────────────────────┘
+                ▼
+┌─────────────────────────────────────┐
+│  자동 검증 (CI Pipeline)            │
+│  • 타입 체크 • 린트 • 테스트        │
+└───────┬───────────────┬─────────────┘
+        ▼ (실패)        ▼ (성공)
+  Self-healing      Reviewer Agent
+  자동 수정 시도         │
+        │               ▼
+        └────────► 커밋/PR 생성
+```
+
+### 승인 레벨 (Approval Levels)
+
+| 레벨 | 대상 | 승인 방식 |
+|------|------|----------|
+| **L1** | 일반 코드 변경 | 자동 (테스트 통과 시) |
+| **L2** | 아키텍처 변경 | 사용자 명시적 승인 |
+| **L3** | 보안 관련 변경 | 사용자 + 리뷰어 승인 |
+| **L4** | 프로덕션 배포 | 사용자 + 관리자 승인 |
+
+상세: [`workflows/approval-flow.md`](./workflows/approval-flow.md)
+
+---
+
+## CI/CD 파이프라인
+
+| 파이프라인 | 설명 | 트리거 |
+|-----------|------|--------|
+| **CI Pipeline** | 코드 품질, 테스트, 빌드, 보안 검사 | Push, PR |
+| **Self-healing** | CI 실패 시 자동 수정 시도 (최대 3회) | CI 실패 |
+| **PR Validation** | PR 제목, 설명, 크기, 충돌 검증 | PR 생성/수정 |
+| **PR Labeler** | 파일, 크기, 승인 레벨 자동 라벨링 | PR 생성/수정 |
+| **Auto Merge** | L1 레벨 + 테스트 통과 시 자동 머지 | CI 성공 |
+| **Release** | Semantic Release 기반 자동 버전 관리 | main 브랜치 푸시 |
+
+### CI Pipeline 상세
+
+```
+┌────────────────┐   ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
+│  Code Quality  │   │  Security Scan │   │     Test       │   │     Build      │
+│  ────────────  │   │  ────────────  │   │  ────────────  │   │  ────────────  │
+│  • TypeScript  │   │  • npm audit   │   │  • Vitest      │   │  • tsc build   │
+│  • ESLint      │   │  • TruffleHog  │   │  • Coverage    │   │  • 아티팩트     │
+└────────────────┘   └────────────────┘   └────────────────┘   └────────────────┘
+```
+
+---
+
+## 개발 도구
+
+### Pre-commit Hooks
+
+커밋 전 자동 검증을 수행합니다.
+
+| Hook | 기능 |
+|------|------|
+| **pre-commit** | lint-staged로 린트/포맷 자동 수정 |
+| **commit-msg** | Conventional Commits 형식 검증 |
+
+### 템플릿
+
+| 템플릿 | 용도 | 파일 |
+|--------|------|------|
+| **PR Template** | Pull Request 작성 가이드 | [`.github/PULL_REQUEST_TEMPLATE.md`](./.github/PULL_REQUEST_TEMPLATE.md) |
+| **Bug Report** | 버그 리포트 폼 | [`.github/ISSUE_TEMPLATE/bug_report.yml`](./.github/ISSUE_TEMPLATE/bug_report.yml) |
+| **Feature Request** | 기능 요청 폼 | [`.github/ISSUE_TEMPLATE/feature_request.yml`](./.github/ISSUE_TEMPLATE/feature_request.yml) |
+
+### 자동화 설정
+
+| 설정 | 용도 | 파일 |
+|------|------|------|
+| **Dependabot** | 의존성 자동 업데이트 | [`.github/dependabot.yml`](./.github/dependabot.yml) |
+| **Labeler** | 파일 기반 자동 라벨링 | [`.github/labeler.yml`](./.github/labeler.yml) |
+| **Semantic Release** | 자동 버전 관리 | [`.releaserc.json`](./.releaserc.json) |
+
+---
+
+## 프로젝트 구조
+
+```
+claude-code-auto/
+├── CLAUDE.md                 # 핵심 규칙 (AI 진입점)
+├── README.md                 # 프로젝트 소개
+│
+├── agents/                   # 에이전트 정의
+│   ├── planner/AGENT.md      # 계획 수립 에이전트
+│   ├── coder/AGENT.md        # 코드 작성 에이전트
+│   └── reviewer/AGENT.md     # 코드 리뷰 에이전트
+│
+├── skills/                   # 스킬 정의
+│   ├── interview/SKILL.md    # 인터뷰 스킬
+│   ├── commit/SKILL.md       # 커밋 스킬
+│   ├── test/SKILL.md         # 테스트 스킬
+│   ├── review-pr/SKILL.md    # PR 리뷰 스킬
+│   ├── deploy/SKILL.md       # 배포 스킬
+│   └── docs/SKILL.md         # 문서 생성 스킬
+│
+├── workflows/                # 워크플로우 정의
+│   ├── feature-development.md
+│   └── approval-flow.md
+│
+├── docs/                     # 문서
+│   ├── ai-orchestrator.md    # 4대 역할 정의
+│   ├── architecture.md       # 시스템 구조
+│   ├── conventions.md        # 코딩 규칙
+│   ├── workflow.md           # 워크플로우 가이드
+│   ├── BRANCH_PROTECTION.md  # 브랜치 보호 설정
+│   └── templates/            # 문서 템플릿
+│
+├── .github/                  # GitHub 설정
+│   ├── workflows/            # CI/CD 파이프라인
+│   │   ├── ci.yml
+│   │   ├── self-healing.yml
+│   │   ├── pr-validation.yml
+│   │   ├── pr-labeler.yml
+│   │   ├── auto-merge.yml
+│   │   └── release.yml
+│   ├── ISSUE_TEMPLATE/       # 이슈 템플릿
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   ├── dependabot.yml
+│   └── labeler.yml
+│
+├── src/                      # 소스 코드
+│   └── index.ts
+│
+├── tests/                    # 테스트
+│   └── index.test.ts
+│
+├── verification/             # 검증 스크립트
+│   └── self-healing/
+│
+└── .claude/                  # Claude 설정
+    ├── settings.local.json
+    └── SPEC.md               # 프로젝트 명세
+```
+
+---
+
+## 개발 명령어
+
+```bash
+# 의존성 설치
+npm install
+
+# 테스트 실행
+npm test
+
+# 테스트 (커버리지 포함)
+npm run test:coverage
+
+# 린트 검사
+npm run lint
+
+# 린트 자동 수정
+npm run lint:fix
+
+# 타입 체크
+npm run type-check
+
+# 빌드
+npm run build
+
+# 개발 서버
+npm run dev
+```
+
+---
+
+## 관련 문서
+
+### 내부 문서
+- [CLAUDE.md](./CLAUDE.md) - 핵심 규칙 및 진입점
+- [AI Orchestrator Guide](./docs/ai-orchestrator.md) - 4대 역할 상세
+- [Architecture](./docs/architecture.md) - 시스템 구조
+- [Conventions](./docs/conventions.md) - 코딩 규칙
+- [Workflow Guide](./docs/workflow.md) - 작업 흐름 상세
+- [Branch Protection](./docs/BRANCH_PROTECTION.md) - 브랜치 보호 설정
+
+### 외부 링크
+- [GitHub Wiki](https://github.com/krdn/claude-code-auto/wiki)
+- [Claude Code 내장 도구](https://github.com/krdn/claude-code-auto/wiki/Claude-Code-내장-도구)
 
 ---
 
@@ -12,22 +277,6 @@ Claude Code 자동화 및 활용 프로젝트
 
 ---
 
-## 프로젝트 구조
+## License
 
-```
-claude-code-auto/
-├── .claude/
-│   ├── settings.local.json
-│   └── SPEC.md              # Interview 스킬용 명세 파일
-├── prompts/
-├── CLAUDE.md
-└── README.md
-```
-
----
-
-## 관련 문서
-
-- [GitHub Wiki](https://github.com/krdn/claude-code-auto/wiki)
-  - [Claude Code 내장 도구](https://github.com/krdn/claude-code-auto/wiki/Claude-Code-내장-도구)
-  - [Interview 스킬 SPEC 템플릿](https://github.com/krdn/claude-code-auto/wiki/Interview-스킬-SPEC-템플릿)
+MIT License
