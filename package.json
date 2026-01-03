@@ -5,10 +5,14 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "ai-orchestrator": "./dist/cli/index.js"
+  },
   "files": [
     "dist"
   ],
   "scripts": {
+    "cli": "npx tsx src/cli/index.ts",
     "build": "tsc -p tsconfig.build.json",
     "type-check": "tsc --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
