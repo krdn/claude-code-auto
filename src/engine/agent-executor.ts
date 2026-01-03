@@ -17,9 +17,11 @@ import type {
   ApprovalStatus,
   ModelType,
 } from '../types/agent.js';
+import type { DirectoryTreeNode } from '../types/file.js';
 import { LlmClient } from '../llm/llm-client.js';
 import type { ClaudeModel } from '../llm/anthropic-client.js';
 import { PromptBuilder } from '../llm/prompt-builder.js';
+import { FileManager } from '../fs/file-manager.js';
 import { config } from '../config/index.js';
 
 /** 에이전트 실행기 설정 */
@@ -78,6 +80,7 @@ export class AgentExecutor {
   private currentAgent: AgentRole | null = null;
   private llmClient: LlmClient;
   private promptBuilder: PromptBuilder;
+  private fileManager: FileManager;
 
   constructor(executorConfig: Partial<AgentExecutorConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...executorConfig };
@@ -91,6 +94,12 @@ export class AgentExecutor {
 
     // 프롬프트 빌더 초기화
     this.promptBuilder = new PromptBuilder(config.promptsDir);
+
+    // 파일 매니저 초기화
+    this.fileManager = new FileManager({
+      workingDir: process.cwd(),
+      debug: this.config.debug,
+    });
   }
 
   /**
@@ -195,11 +204,15 @@ export class AgentExecutor {
           result = await this.simulateCoderExecution(input, attempts);
         } else {
           // 실제 LLM 호출
+          // 파일 내용 및 코드베이스 정보 수집
+          const currentFiles = await this.readAffectedFiles(input.plan);
+          const codebaseInfo = await this.getCodebaseInfo();
+
           const promptVariables = {
             plan: JSON.stringify(input.plan),
             projectContext: JSON.stringify(input.context || {}),
-            currentFiles: '// TODO: 현재 파일 내용',
-            codebaseInfo: '// TODO: 코드베이스 정보',
+            currentFiles,
+            codebaseInfo,
           };
 
           const prompt = await this.promptBuilder.buildAgentPrompt('coder', promptVariables);
@@ -323,6 +336,54 @@ export class AgentExecutor {
     };
     return modelMap[modelType];
   }
+
+  /**
+   * 계획의 영향받는 파일들 읽기
+   */
+  private async readAffectedFiles(plan: PlanResult): Promise<string> {
+    const fileContents: string[] = [];
+
+    for (const file of plan.affectedFiles || []) {
+      const result = await this.fileManager.readFile(file.path);
+      if (result.success && result.data?.content) {
+        fileContents.push(`=== ${file.path} ===\n${result.data.content}\n`);
+      } else {
+        fileContents.push(`=== ${file.path} ===\n[File does not exist or cannot be read]\n`);
+      }
+    }
+
+    return fileContents.join('\n');
+  }
+
+  /**
+   * 코드베이스 정보 수집
+   */
+  private async getCodebaseInfo(): Promise<string> {
+    try {
+      // 프로젝트 구조 요약
+      const tree = await this.fileManager.getDirectoryTree('.', 2);
+      if (!tree) {
+        return 'Unable to read codebase structure';
+      }
+
+      const formatTree = (node: DirectoryTreeNode, indent: string = ''): string => {
+        let result = `${indent}${node.name}${node.isDirectory ? '/' : ''}\n`;
+        if (node.children) {
+          for (const child of node.children) {
+            result += formatTree(child, indent + '  ');
+          }
+        }
+        return result;
+      };
+
+      return `Project Structure:\n${formatTree(tree)}`;
+    } catch (error) {
+      return 'Error reading codebase info';
+    }
+  }
+
+  // TODO: LLM 응답에서 파일 변경사항 적용하는 메서드
+  // parseCoderResponse 구현 시 추가 예정
 
   /**
    * Planner LLM 응답 파싱
