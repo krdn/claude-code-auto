@@ -123,3 +123,30 @@ export const defaultSkills: Skill[] = [
   { name: 'Deploy', command: '/deploy', description: '배포' },
   { name: 'Docs', command: '/docs', description: '문서 생성' },
 ];
+
+/**
+ * 승인 레벨에 따른 설명 반환
+ */
+export function getApprovalLevelDescription(level: ApprovalLevel): string {
+  const descriptions: Record<ApprovalLevel, string> = {
+    [ApprovalLevel.L1]: '자동 승인 - 일반 코드 변경, CI 통과 시 자동 머지',
+    [ApprovalLevel.L2]: '사용자 승인 - 아키텍처 변경, 리뷰어 1명 필요',
+    [ApprovalLevel.L3]: '이중 승인 - 보안 관련, 보안팀 리뷰 필요',
+    [ApprovalLevel.L4]: '관리자 승인 - 프로덕션 배포, 관리자 승인 필요',
+  };
+  return descriptions[level];
+}
+
+/**
+ * 스킬 검색
+ */
+export function findSkillByCommand(command: string): Skill | undefined {
+  return defaultSkills.find(skill => skill.command === command);
+}
+
+/**
+ * 에이전트 검색
+ */
+export function findAgentByRole(role: Agent['role']): Agent | undefined {
+  return defaultAgents.find(agent => agent.role === role);
+}

@@ -4,6 +4,9 @@ import {
   ApprovalLevel,
   defaultAgents,
   defaultSkills,
+  getApprovalLevelDescription,
+  findSkillByCommand,
+  findAgentByRole,
   type OrchestratorConfig,
   type Agent,
   type Skill,
@@ -144,6 +147,44 @@ describe('AI Orchestrator', () => {
       expect(commands).toContain('/review-pr');
       expect(commands).toContain('/deploy');
       expect(commands).toContain('/docs');
+    });
+  });
+
+  describe('getApprovalLevelDescription', () => {
+    it('should return description for L1', () => {
+      const desc = getApprovalLevelDescription(ApprovalLevel.L1);
+      expect(desc).toContain('자동 승인');
+    });
+
+    it('should return description for L4', () => {
+      const desc = getApprovalLevelDescription(ApprovalLevel.L4);
+      expect(desc).toContain('관리자 승인');
+    });
+  });
+
+  describe('findSkillByCommand', () => {
+    it('should find skill by command', () => {
+      const skill = findSkillByCommand('/interview');
+      expect(skill).toBeDefined();
+      expect(skill?.name).toBe('Interview');
+    });
+
+    it('should return undefined for unknown command', () => {
+      const skill = findSkillByCommand('/unknown');
+      expect(skill).toBeUndefined();
+    });
+  });
+
+  describe('findAgentByRole', () => {
+    it('should find agent by role', () => {
+      const agent = findAgentByRole('planner');
+      expect(agent).toBeDefined();
+      expect(agent?.name).toBe('Planner');
+    });
+
+    it('should return undefined for unknown role', () => {
+      const agent = findAgentByRole('unknown' as Agent['role']);
+      expect(agent).toBeUndefined();
     });
   });
 });
