@@ -1,0 +1,39 @@
+{
+  "categories": [
+    {
+      "title": "## 🚀 Features",
+      "labels": ["enhancement", "feature"]
+    },
+    {
+      "title": "## 🐛 Bug Fixes",
+      "labels": ["bug", "fix"]
+    },
+    {
+      "title": "## 📝 Documentation",
+      "labels": ["documentation", "docs"]
+    },
+    {
+      "title": "## 🔧 Maintenance",
+      "labels": ["chore", "maintenance", "refactor"]
+    },
+    {
+      "title": "## 🔒 Security",
+      "labels": ["security"]
+    },
+    {
+      "title": "## ⚡ Performance",
+      "labels": ["performance"]
+    }
+  ],
+  "template": "#{{CHANGELOG}}\n\n**Full Changelog**: #{{RELEASE_DIFF}}",
+  "pr_template": "- #{{TITLE}} (#{{NUMBER}}) by @#{{AUTHOR}}",
+  "empty_template": "- 이 릴리즈에는 변경사항이 없습니다.",
+  "transformers": [],
+  "label_extractor": [],
+  "sort": {
+    "order": "ASC",
+    "on_property": "mergedAt"
+  },
+  "max_pull_requests": 200,
+  "max_back_track_time_days": 365
+}
