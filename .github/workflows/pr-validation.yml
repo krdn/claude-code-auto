@@ -1,0 +1,181 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # ============================================
+  # PR 제목 검증 (Conventional Commits)
+  # ============================================
+  validate-title:
+    name: Validate Title
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR title format
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = context.payload.pull_request.title;
+
+            // Conventional Commits pattern
+            const pattern = /^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{3,}/;
+
+            if (!pattern.test(title)) {
+              core.setFailed(`PR 제목이 Conventional Commits 형식이 아닙니다.
+
+            현재: "${title}"
+
+            필요한 형식: type(scope): description
+            예시:
+              - feat: 새로운 기능 추가
+              - fix(auth): 로그인 버그 수정
+              - docs: README 업데이트
+              - chore(deps): 의존성 업데이트
+
+            유효한 타입: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert`);
+            } else {
+              console.log(`✅ PR 제목 형식 확인: "${title}"`);
+            }
+
+  # ============================================
+  # PR 설명 검증
+  # ============================================
+  validate-description:
+    name: Validate Description
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const errors = [];
+            const warnings = [];
+
+            // 최소 길이 확인
+            if (body.length < 50) {
+              errors.push('PR 설명이 너무 짧습니다 (최소 50자)');
+            }
+
+            // Summary 섹션 확인
+            const hasSummary = /## summary|## 요약|### summary/i.test(body);
+            if (!hasSummary && body.length > 0) {
+              warnings.push('Summary 섹션 추가를 권장합니다');
+            }
+
+            // 이슈 링크 확인
+            const hasIssueLink = /#\d+|closes #|fixes #|resolves #/i.test(body);
+            if (!hasIssueLink) {
+              warnings.push('관련 이슈 링크가 없습니다 (#123 형식)');
+            }
+
+            // 체크리스트 확인
+            const uncheckedItems = body.match(/- \[ \]/g) || [];
+            if (uncheckedItems.length > 0) {
+              warnings.push(`체크되지 않은 항목이 ${uncheckedItems.length}개 있습니다`);
+            }
+
+            // 결과 출력
+            if (errors.length > 0) {
+              core.setFailed(`PR 설명 검증 실패:
+            ${errors.map(e => '❌ ' + e).join('\n')}
+            ${warnings.length > 0 ? '\n경고:\n' + warnings.map(w => '⚠️ ' + w).join('\n') : ''}`);
+            } else {
+              console.log('✅ PR 설명 검증 통과');
+              if (warnings.length > 0) {
+                console.log('경고:');
+                warnings.forEach(w => console.log('⚠️ ' + w));
+              }
+            }
+
+  # ============================================
+  # PR 크기 검증
+  # ============================================
+  validate-size:
+    name: Validate Size
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR size
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+
+            const totalChanges = pr.additions + pr.deletions;
+            const filesChanged = pr.changed_files;
+
+            let message = `PR 크기: ${totalChanges} 줄 변경, ${filesChanged} 파일`;
+
+            if (totalChanges > 1000) {
+              core.warning(`⚠️ PR이 매우 큽니다 (${totalChanges} 줄). 분할을 고려해주세요.`);
+              message += '\n⚠️ PR이 매우 큽니다. 리뷰가 어려울 수 있습니다.';
+            } else if (totalChanges > 500) {
+              core.warning(`⚠️ PR이 큽니다 (${totalChanges} 줄).`);
+              message += '\n⚠️ PR이 다소 큽니다.';
+            }
+
+            if (filesChanged > 20) {
+              core.warning(`⚠️ 변경된 파일이 많습니다 (${filesChanged} 개).`);
+              message += `\n⚠️ 변경된 파일이 많습니다 (${filesChanged} 개).`;
+            }
+
+            console.log(message);
+
+  # ============================================
+  # 충돌 검증
+  # ============================================
+  check-conflicts:
+    name: Check Conflicts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check for merge conflicts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+
+            if (pr.mergeable === false) {
+              core.setFailed('❌ PR에 머지 충돌이 있습니다. 충돌을 해결해주세요.');
+            } else if (pr.mergeable === null) {
+              console.log('⏳ 머지 가능 여부 확인 중...');
+            } else {
+              console.log('✅ 머지 충돌 없음');
+            }
+
+  # ============================================
+  # 검증 요약
+  # ============================================
+  summary:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    needs: [validate-title, validate-description, validate-size, check-conflicts]
+    if: always()
+
+    steps:
+      - name: Create summary
+        run: |
+          echo "## PR 검증 결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 검사 | 결과 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 제목 형식 | ${{ needs.validate-title.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 설명 검증 | ${{ needs.validate-description.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 크기 검사 | ${{ needs.validate-size.result == 'success' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 충돌 확인 | ${{ needs.check-conflicts.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY

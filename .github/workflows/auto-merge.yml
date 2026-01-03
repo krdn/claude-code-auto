@@ -1,0 +1,193 @@
+name: Auto Merge
+
+on:
+  pull_request_review:
+    types: [submitted]
+  check_suite:
+    types: [completed]
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # ============================================
+  # Dependabot 자동 머지
+  # ============================================
+  auto-merge-dependabot:
+    name: Auto Merge Dependabot
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+
+    steps:
+      - name: Get Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Auto-approve patch updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: |
+          gh pr review --approve "$PR_URL"
+          echo "✅ Patch 업데이트 자동 승인"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for patch updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: |
+          gh pr merge --auto --squash "$PR_URL"
+          echo "✅ Auto-merge 활성화 (patch)"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on minor/major updates
+        if: steps.metadata.outputs.update-type != 'version-update:semver-patch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const updateType = '${{ steps.metadata.outputs.update-type }}';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `## Dependabot Update
+
+            **업데이트 유형**: ${updateType}
+
+            ⚠️ Minor/Major 업데이트는 수동 검토가 필요합니다.
+
+            확인 후 머지해주세요.`,
+            });
+
+  # ============================================
+  # L1 자동 머지
+  # ============================================
+  auto-merge-l1:
+    name: Auto Merge L1
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request_review' &&
+      github.event.review.state == 'approved' &&
+      github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Check labels and enable auto-merge
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pr_number = context.payload.pull_request.number;
+
+            // Get PR details
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pr_number,
+            });
+
+            const labels = pr.labels.map(l => l.name);
+
+            // Check if L1 approval level
+            if (!labels.includes('approval:l1')) {
+              console.log('L1 라벨이 없습니다. Auto-merge 건너뜀.');
+              return;
+            }
+
+            // Check if auto-merge is enabled
+            if (labels.includes('no-auto-merge')) {
+              console.log('no-auto-merge 라벨이 있습니다. Auto-merge 건너뜀.');
+              return;
+            }
+
+            // Get reviews
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner,
+              repo,
+              pull_number: pr_number,
+            });
+
+            const approvals = reviews.filter(r => r.state === 'APPROVED').length;
+
+            if (approvals < 1) {
+              console.log('승인이 부족합니다. Auto-merge 건너뜀.');
+              return;
+            }
+
+            // Enable auto-merge
+            console.log(`✅ L1 PR #${pr_number}: Auto-merge 조건 충족`);
+            console.log(`   - 승인: ${approvals}개`);
+            console.log(`   - 라벨: ${labels.join(', ')}`);
+
+            // Note: Actual auto-merge requires branch protection rules
+            // and the repository setting "Allow auto-merge" enabled
+
+  # ============================================
+  # 머지 차단 (L2/L3/L4)
+  # ============================================
+  block-auto-merge:
+    name: Block Auto Merge for L2+
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request_review' &&
+      github.event.review.state == 'approved'
+
+    steps:
+      - name: Check for high approval levels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pr_number = context.payload.pull_request.number;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pr_number,
+            });
+
+            const labels = pr.labels.map(l => l.name);
+            const highLevels = ['approval:l2', 'approval:l3', 'approval:l4'];
+
+            const hasHighLevel = highLevels.some(l => labels.includes(l));
+
+            if (hasHighLevel) {
+              const level = labels.find(l => highLevels.includes(l));
+              console.log(`⚠️ ${level} PR은 수동 머지가 필요합니다.`);
+
+              // Add comment if not already commented
+              const { data: comments } = await github.rest.issues.listComments({
+                owner,
+                repo,
+                issue_number: pr_number,
+              });
+
+              const hasBlockComment = comments.some(c =>
+                c.body.includes('Auto-merge 비활성화')
+              );
+
+              if (!hasBlockComment) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pr_number,
+                  body: `## Auto-merge 비활성화
+
+            이 PR은 **${level.toUpperCase()}** 승인 레벨입니다.
+
+            ${level === 'approval:l2' ? '아키텍처 변경으로 인해 ' : ''}
+            ${level === 'approval:l3' ? '보안 관련 변경으로 인해 ' : ''}
+            ${level === 'approval:l4' ? '프로덕션 배포로 인해 ' : ''}
+            수동 검토 및 머지가 필요합니다.
+
+            모든 확인이 완료되면 수동으로 머지해주세요.`,
+                });
+              }
+            }
