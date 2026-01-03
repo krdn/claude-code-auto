@@ -35,5 +35,5 @@ jobs:
       - name: Run Claude
         uses: anthropics/claude-code-action@beta
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_oauth: true
           timeout_minutes: "60"
