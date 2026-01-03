@@ -22,6 +22,7 @@ import { LlmClient } from '../llm/llm-client.js';
 import type { ClaudeModel } from '../llm/anthropic-client.js';
 import { PromptBuilder } from '../llm/prompt-builder.js';
 import { FileManager } from '../fs/file-manager.js';
+import { TestRunner } from '../test/test-runner.js';
 import { config } from '../config/index.js';
 
 /** 에이전트 실행기 설정 */
@@ -81,6 +82,7 @@ export class AgentExecutor {
   private llmClient: LlmClient;
   private promptBuilder: PromptBuilder;
   private fileManager: FileManager;
+  private testRunner: TestRunner;
 
   constructor(executorConfig: Partial<AgentExecutorConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...executorConfig };
@@ -97,6 +99,12 @@ export class AgentExecutor {
 
     // 파일 매니저 초기화
     this.fileManager = new FileManager({
+      workingDir: process.cwd(),
+      debug: this.config.debug,
+    });
+
+    // 테스트 러너 초기화
+    this.testRunner = new TestRunner({
       workingDir: process.cwd(),
       debug: this.config.debug,
     });
@@ -224,7 +232,13 @@ export class AgentExecutor {
             temperature: config.agents.coder.temperature,
           });
 
-          result = this.parseCoderResponse(llmResponse, attempts);
+          // TODO: LLM 응답에서 파일 변경사항을 실제로 적용
+          // 현재는 파일 변경을 하지 않으므로 기존 테스트가 그대로 통과할 것
+
+          // 코드 검증 실행 (테스트, 타입 체크, Lint)
+          const validationResults = await this.runValidation();
+
+          result = this.parseCoderResponse(llmResponse, attempts, validationResults);
         }
 
         // 테스트 통과 시 루프 종료
@@ -273,11 +287,20 @@ export class AgentExecutor {
       }
 
       // 실제 LLM 호출
+      // Lint 결과 수집
+      const lintResult = await this.testRunner.runLint();
+      const lintResults = {
+        success: lintResult.success,
+        errorCount: lintResult.errorCount,
+        warningCount: lintResult.warningCount,
+        problems: lintResult.problems.slice(0, 10), // 상위 10개만 포함
+      };
+
       const promptVariables = {
         changedCode: JSON.stringify(input.implementation.files),
         plan: JSON.stringify(input.plan),
         testResults: JSON.stringify(input.implementation.testResults),
-        lintResults: '// TODO: Lint 결과',
+        lintResults: JSON.stringify(lintResults),
       };
 
       const prompt = await this.promptBuilder.buildAgentPrompt('reviewer', promptVariables);
@@ -382,6 +405,79 @@ export class AgentExecutor {
     }
   }
 
+  /**
+   * 코드 검증 실행 (테스트, 타입 체크, Lint)
+   */
+  private async runValidation(): Promise<{
+    testsPassed: boolean;
+    typeCheckPassed: boolean;
+    lintPassed: boolean;
+    testResults: {
+      passed: boolean;
+      total: number;
+      passedCount: number;
+      failedCount: number;
+      coverage: number;
+      typeCheck: boolean;
+      lint: boolean;
+      details?: string;
+    };
+  }> {
+    try {
+      // 1. 테스트 실행
+      const testResult = await this.testRunner.runTests({
+        framework: 'vitest',
+      });
+
+      // 2. 타입 체크
+      const typeCheckResult = await this.testRunner.runTypeCheck();
+
+      // 3. Lint 체크
+      const lintResult = await this.testRunner.runLint();
+
+      const testsPassed = testResult.success;
+      const typeCheckPassed = typeCheckResult.success;
+      const lintPassed = lintResult.success;
+
+      return {
+        testsPassed,
+        typeCheckPassed,
+        lintPassed,
+        testResults: {
+          passed: testsPassed && typeCheckPassed && lintPassed,
+          total: testResult.total,
+          passedCount: testResult.passed,
+          failedCount: testResult.failed,
+          coverage: 0, // TODO: 커버리지 정보 파싱
+          typeCheck: typeCheckPassed,
+          lint: lintPassed,
+          details: [
+            `Tests: ${testResult.passed}/${testResult.total} passed`,
+            `Type errors: ${typeCheckResult.errorCount}`,
+            `Lint errors: ${lintResult.errorCount}, warnings: ${lintResult.warningCount}`,
+          ].join('\n'),
+        },
+      };
+    } catch (error) {
+      // 검증 실행 실패 시 기본값 반환
+      return {
+        testsPassed: false,
+        typeCheckPassed: false,
+        lintPassed: false,
+        testResults: {
+          passed: false,
+          total: 0,
+          passedCount: 0,
+          failedCount: 0,
+          coverage: 0,
+          typeCheck: false,
+          lint: false,
+          details: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  }
+
   // TODO: LLM 응답에서 파일 변경사항 적용하는 메서드
   // parseCoderResponse 구현 시 추가 예정
 
@@ -417,25 +513,47 @@ export class AgentExecutor {
   /**
    * Coder LLM 응답 파싱
    */
-  private parseCoderResponse(_llmResponse: string, attempts: number): ImplementationResult {
+  private parseCoderResponse(
+    _llmResponse: string,
+    attempts: number,
+    validationResults?: {
+      testsPassed: boolean;
+      typeCheckPassed: boolean;
+      lintPassed: boolean;
+      testResults: {
+        passed: boolean;
+        total: number;
+        passedCount: number;
+        failedCount: number;
+        coverage: number;
+        typeCheck: boolean;
+        lint: boolean;
+        details?: string;
+      };
+    }
+  ): ImplementationResult {
     // TODO: 실제 파싱 로직 구현
     // 임시로 기본 구조 반환
+    const testResults = validationResults?.testResults || {
+      passed: true,
+      total: 0,
+      passedCount: 0,
+      failedCount: 0,
+      coverage: 0,
+      typeCheck: true,
+      lint: true,
+    };
+
     return {
       role: 'coder',
-      success: true,
-      message: '구현이 완료되었습니다.',
+      success: testResults.passed,
+      message: testResults.passed
+        ? '구현이 완료되었습니다.'
+        : `구현 검증 실패 (시도 ${attempts}/${this.config.maxHealingAttempts}):\n${testResults.details || ''}`,
       files: [],
-      testResults: {
-        passed: true,
-        total: 0,
-        passedCount: 0,
-        failedCount: 0,
-        coverage: 0,
-        typeCheck: true,
-        lint: true,
-      },
+      testResults,
       healingAttempts: attempts,
-      nextStep: 'reviewer',
+      nextStep: testResults.passed ? 'reviewer' : 'coder',
     };
   }
 

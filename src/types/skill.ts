@@ -4,6 +4,8 @@
  * 스킬 실행에 필요한 인터페이스와 타입을 정의합니다.
  */
 
+import type { CoverageInfo } from './test.js';
+
 /** 스킬 이름 타입 */
 export type SkillName = 'commit' | 'test' | 'review-pr' | 'deploy' | 'docs' | 'interview';
 
@@ -78,18 +80,6 @@ export interface TestResult extends SkillOutput {
   coverage?: CoverageInfo;
   /** 실패한 테스트 상세 */
   failedTests?: FailedTest[];
-}
-
-/** 커버리지 정보 */
-export interface CoverageInfo {
-  /** 구문 커버리지 */
-  statements: number;
-  /** 분기 커버리지 */
-  branches: number;
-  /** 함수 커버리지 */
-  functions: number;
-  /** 라인 커버리지 */
-  lines: number;
 }
 
 /** 실패한 테스트 정보 */
