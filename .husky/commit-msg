@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Conventional Commits 형식 검증
+commit_msg=$(cat "$1")
+pattern="^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,}"
+
+if ! echo "$commit_msg" | grep -Eq "$pattern"; then
+  echo "❌ 커밋 메시지가 Conventional Commits 형식이 아닙니다."
+  echo ""
+  echo "올바른 형식: type(scope): description"
+  echo ""
+  echo "예시:"
+  echo "  feat: 새로운 기능 추가"
+  echo "  fix(auth): 로그인 버그 수정"
+  echo "  docs: README 업데이트"
+  echo ""
+  echo "유효한 타입: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert"
+  exit 1
+fi
