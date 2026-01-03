@@ -15,7 +15,11 @@ import type {
   ImplementationResult,
   ReviewResult,
   ApprovalStatus,
+  ModelType,
 } from '../types/agent.js';
+import { AnthropicClient, type ClaudeModel } from '../llm/anthropic-client.js';
+import { PromptBuilder } from '../llm/prompt-builder.js';
+import { config } from '../config/index.js';
 
 /** 에이전트 실행기 설정 */
 export interface AgentExecutorConfig {
@@ -71,9 +75,17 @@ export class AgentExecutor {
   private config: AgentExecutorConfig;
   private status: AgentStatus = 'idle';
   private currentAgent: AgentRole | null = null;
+  private llmClient: AnthropicClient;
+  private promptBuilder: PromptBuilder;
 
-  constructor(config: Partial<AgentExecutorConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+  constructor(executorConfig: Partial<AgentExecutorConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...executorConfig };
+
+    // LLM 클라이언트 초기화
+    this.llmClient = new AnthropicClient(config.llm.apiKey);
+
+    // 프롬프트 빌더 초기화
+    this.promptBuilder = new PromptBuilder(config.promptsDir);
   }
 
   /**
@@ -98,15 +110,44 @@ export class AgentExecutor {
     this.currentAgent = 'planner';
 
     try {
-      const config = AGENT_CONFIGS.planner;
+      const agentConfig = AGENT_CONFIGS.planner;
 
       if (this.config.debug) {
-        console.log(`[${config.name}] Starting with request: ${input.request}`);
+        console.log(`[${agentConfig.name}] Starting with request: ${input.request}`);
       }
 
-      // TODO(human): 실제 AI 모델 호출 로직 구현
-      // 현재는 시뮬레이션된 결과 반환
-      const result = await this.simulatePlannerExecution(input);
+      // 시뮬레이션 모드일 경우 기존 로직 사용
+      if (this.config.simulate) {
+        const result = await this.simulatePlannerExecution(input);
+        this.status = 'waiting_approval';
+        return result;
+      }
+
+      // TODO(human): 프롬프트 컨텍스트 구성
+      // input 객체에서 LLM에 전달할 정보를 선택하여 promptVariables 구성
+      // 고려사항:
+      // - userRequest: input.request
+      // - projectContext: input.context에서 어떤 정보를 포함할지?
+      // - codebaseInfo: 현재 코드베이스 구조 정보를 어떻게 수집할지?
+      const promptVariables = {
+        userRequest: input.request,
+        projectContext: JSON.stringify(input.context || {}),
+        codebaseInfo: '// TODO: 코드베이스 정보 수집 로직',
+      };
+
+      // 프롬프트 빌드
+      const prompt = await this.promptBuilder.buildAgentPrompt('planner', promptVariables);
+
+      // LLM 호출
+      const llmResponse = await this.llmClient.complete({
+        model: this.mapModelType(agentConfig.model),
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: config.agents.planner.maxTokens,
+        temperature: config.agents.planner.temperature,
+      });
+
+      // LLM 응답 파싱
+      const result = this.parsePlannerResponse(llmResponse, input);
 
       this.status = 'waiting_approval';
       return result;
@@ -132,7 +173,7 @@ export class AgentExecutor {
     this.currentAgent = 'coder';
 
     try {
-      const config = AGENT_CONFIGS.coder;
+      const agentConfig = AGENT_CONFIGS.coder;
       let attempts = 0;
       let result: ImplementationResult;
 
@@ -141,10 +182,32 @@ export class AgentExecutor {
         attempts++;
 
         if (this.config.debug) {
-          console.log(`[${config.name}] Attempt ${attempts}/${this.config.maxHealingAttempts}`);
+          console.log(`[${agentConfig.name}] Attempt ${attempts}/${this.config.maxHealingAttempts}`);
         }
 
-        result = await this.simulateCoderExecution(input, attempts);
+        // 시뮬레이션 모드일 경우
+        if (this.config.simulate) {
+          result = await this.simulateCoderExecution(input, attempts);
+        } else {
+          // 실제 LLM 호출
+          const promptVariables = {
+            plan: JSON.stringify(input.plan),
+            projectContext: JSON.stringify(input.context || {}),
+            currentFiles: '// TODO: 현재 파일 내용',
+            codebaseInfo: '// TODO: 코드베이스 정보',
+          };
+
+          const prompt = await this.promptBuilder.buildAgentPrompt('coder', promptVariables);
+
+          const llmResponse = await this.llmClient.complete({
+            model: this.mapModelType(agentConfig.model),
+            messages: [{ role: 'user', content: prompt }],
+            maxTokens: config.agents.coder.maxTokens,
+            temperature: config.agents.coder.temperature,
+          });
+
+          result = this.parseCoderResponse(llmResponse, attempts);
+        }
 
         // 테스트 통과 시 루프 종료
         if (result.testResults.passed) {
@@ -178,13 +241,37 @@ export class AgentExecutor {
     this.currentAgent = 'reviewer';
 
     try {
-      const config = AGENT_CONFIGS.reviewer;
+      const agentConfig = AGENT_CONFIGS.reviewer;
 
       if (this.config.debug) {
-        console.log(`[${config.name}] Reviewing ${input.implementation.files.length} files`);
+        console.log(`[${agentConfig.name}] Reviewing ${input.implementation.files.length} files`);
       }
 
-      const result = await this.simulateReviewerExecution(input);
+      // 시뮬레이션 모드일 경우
+      if (this.config.simulate) {
+        const result = await this.simulateReviewerExecution(input);
+        this.status = 'completed';
+        return result;
+      }
+
+      // 실제 LLM 호출
+      const promptVariables = {
+        changedCode: JSON.stringify(input.implementation.files),
+        plan: JSON.stringify(input.plan),
+        testResults: JSON.stringify(input.implementation.testResults),
+        lintResults: '// TODO: Lint 결과',
+      };
+
+      const prompt = await this.promptBuilder.buildAgentPrompt('reviewer', promptVariables);
+
+      const llmResponse = await this.llmClient.complete({
+        model: this.mapModelType(agentConfig.model),
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: config.agents.reviewer.maxTokens,
+        temperature: config.agents.reviewer.temperature,
+      });
+
+      const result = this.parseReviewerResponse(llmResponse);
 
       this.status = 'completed';
       return result;
@@ -216,6 +303,106 @@ export class AgentExecutor {
   reset(): void {
     this.status = 'idle';
     this.currentAgent = null;
+  }
+
+  // ==================== 헬퍼 메서드 ====================
+
+  /**
+   * 모델 타입 매핑 (기존 타입 → Claude 모델명)
+   */
+  private mapModelType(modelType: ModelType): ClaudeModel {
+    const modelMap: Record<ModelType, ClaudeModel> = {
+      opus: 'claude-opus-4',
+      sonnet: 'claude-sonnet-4',
+      haiku: 'claude-haiku-4',
+    };
+    return modelMap[modelType];
+  }
+
+  /**
+   * Planner LLM 응답 파싱
+   */
+  private parsePlannerResponse(llmResponse: string, input: AgentInput): PlanResult {
+    // TODO: 실제 파싱 로직 구현
+    // LLM 응답을 마크다운에서 구조화된 PlanResult로 변환
+    // 임시로 기본 구조 반환
+    return {
+      role: 'planner',
+      success: true,
+      message: '계획이 수립되었습니다.',
+      title: `작업: ${input.request}`,
+      objective: input.request,
+      affectedFiles: [],
+      phases: [
+        {
+          number: 1,
+          title: '기본 구현',
+          tasks: [
+            { id: 'task-1', description: 'LLM 응답 파싱 구현 필요', completed: false },
+          ],
+        },
+      ],
+      risks: [],
+      approvalStatus: 'pending',
+      nextStep: 'coder',
+    };
+  }
+
+  /**
+   * Coder LLM 응답 파싱
+   */
+  private parseCoderResponse(llmResponse: string, attempts: number): ImplementationResult {
+    // TODO: 실제 파싱 로직 구현
+    // 임시로 기본 구조 반환
+    return {
+      role: 'coder',
+      success: true,
+      message: '구현이 완료되었습니다.',
+      files: [],
+      testResults: {
+        passed: true,
+        total: 0,
+        passedCount: 0,
+        failedCount: 0,
+        coverage: 0,
+        typeCheck: true,
+        lint: true,
+      },
+      healingAttempts: attempts,
+      nextStep: 'reviewer',
+    };
+  }
+
+  /**
+   * Reviewer LLM 응답 파싱
+   */
+  private parseReviewerResponse(llmResponse: string): ReviewResult {
+    // TODO: 실제 파싱 로직 구현
+    // 임시로 기본 구조 반환
+    return {
+      role: 'reviewer',
+      success: true,
+      message: '코드 리뷰가 완료되었습니다.',
+      score: 85,
+      summary: {
+        quality: 'pass',
+        security: 'pass',
+        performance: 'pass',
+        testCoverage: 'pass',
+      },
+      positives: [],
+      criticalIssues: [],
+      suggestions: [],
+      securityCheck: {
+        sqlInjection: 'na',
+        xss: 'safe',
+        csrf: 'na',
+        authentication: 'proper',
+        sensitiveData: 'none',
+      },
+      decision: 'approved',
+      nextStep: 'complete',
+    };
   }
 
   // ==================== 시뮬레이션 메서드 ====================

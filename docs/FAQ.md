@@ -598,7 +598,65 @@ node dist/cli/index.js help
 
 ---
 
-### Q27. 승인 대기에서 멈춰있어요
+### Q27. Claude Code 확장 설치 오류가 발생해요 (code-server 환경)
+
+**증상:**
+```
+Request interrupted by user
+IDE: ✘ Error installing VS Code extension: 1: 1
+```
+
+**원인:** code-server(웹 기반 VS Code) 환경에서 Claude CLI가 일반 VS Code 방식으로 확장을 설치하려다 실패
+
+**진단 방법:**
+```bash
+# 1. code-server 사용 여부 확인
+ps aux | grep code-server
+
+# 2. 현재 설치된 확장 확인
+# 웹 UI의 Extensions 탭에서 확인
+```
+
+**해결책:**
+
+**방법 1: 웹 UI에서 수동 설치 (권장)**
+1. 브라우저에서 code-server 접속 (예: http://localhost:8080)
+2. 좌측 사이드바에서 Extensions (확장) 아이콘 클릭 (또는 `Ctrl+Shift+X`)
+3. 검색창에 "Claude Code" 또는 "Anthropic" 입력
+4. "Install" 버튼 클릭
+5. 설치 완료 후 페이지 새로고침
+
+**방법 2: CLI만 사용 (IDE 통합 없이)**
+```bash
+# 터미널에서 Claude Code CLI 직접 실행
+claude
+
+# 또는 특정 프로젝트에서
+cd /path/to/project
+claude
+```
+
+**방법 3: 일반 VS Code 데스크톱 앱 사용**
+- code-server 대신 일반 VS Code를 설치하여 사용
+- 다운로드: https://code.visualstudio.com/
+
+**확인:**
+```bash
+# CLI가 정상 작동하는지 확인
+claude --version
+
+# 또는
+which claude
+```
+
+**참고:**
+- code-server는 웹 기반이므로 일부 확장이 제한적으로 작동할 수 있습니다
+- Claude CLI는 확장 없이도 터미널에서 정상 작동합니다
+- IDE 통합 기능(인라인 제안 등)은 확장 설치가 필요합니다
+
+---
+
+### Q28. 승인 대기에서 멈춰있어요
 
 **원인:** 워크플로우가 사용자 승인을 기다리고 있음
 
@@ -625,7 +683,7 @@ orchestrator.cancel();
 
 ---
 
-### Q28. 워크플로우가 취소됐어요
+### Q29. 워크플로우가 취소됐어요
 
 **상태 확인:**
 ```bash
@@ -643,7 +701,7 @@ npx ai-orchestrator status
 
 ## 6. 고급 사용법
 
-### Q29. 새로운 스킬을 추가하려면?
+### Q30. 새로운 스킬을 추가하려면?
 
 **1단계: 스킬 타입 추가** (`src/types/skill.ts`)
 ```typescript
@@ -686,7 +744,7 @@ private async executeYourNewSkill(input: SkillInput): Promise<SkillOutput> {
 
 ---
 
-### Q30. 커스텀 에이전트를 만들려면?
+### Q31. 커스텀 에이전트를 만들려면?
 
 **1단계: 에이전트 타입 추가** (`src/types/agent.ts`)
 ```typescript
@@ -712,7 +770,7 @@ async execute(role: AgentRole, input: AgentInput): Promise<AgentOutput> {
 
 ---
 
-### Q31. CI/CD에 통합하려면?
+### Q32. CI/CD에 통합하려면?
 
 **GitHub Actions 예시** (`.github/workflows/ai-workflow.yml`):
 ```yaml
@@ -744,7 +802,7 @@ jobs:
 
 ---
 
-### Q32. 다른 프로젝트에 적용하려면?
+### Q33. 다른 프로젝트에 적용하려면?
 
 **1단계: 필수 파일 복사**
 ```

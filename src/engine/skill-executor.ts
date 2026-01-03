@@ -15,6 +15,10 @@ import type {
   ReviewPRResult,
   SKILL_CONFIGS,
 } from '../types/skill.js';
+import { GitClient } from '../git/git-client.js';
+import { AnthropicClient } from '../llm/anthropic-client.js';
+import { PromptBuilder } from '../llm/prompt-builder.js';
+import { config } from '../config/index.js';
 
 /** 스킬 실행기 설정 */
 export interface SkillExecutorConfig {
@@ -42,9 +46,21 @@ export class SkillExecutor {
   private config: SkillExecutorConfig;
   private status: SkillStatus = 'idle';
   private currentSkill: SkillName | null = null;
+  private gitClient: GitClient;
+  private llmClient: AnthropicClient;
+  private promptBuilder: PromptBuilder;
 
-  constructor(config: Partial<SkillExecutorConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+  constructor(skillConfig: Partial<SkillExecutorConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...skillConfig };
+
+    // Git 클라이언트 초기화
+    this.gitClient = new GitClient(this.config.workingDir);
+
+    // LLM 클라이언트 초기화
+    this.llmClient = new AnthropicClient(config.llm.apiKey);
+
+    // 프롬프트 빌더 초기화
+    this.promptBuilder = new PromptBuilder(config.promptsDir);
   }
 
   /**
@@ -227,23 +243,77 @@ export class SkillExecutor {
 
   // ==================== 실제 실행 메서드 ====================
 
-  private async performCommit(_input: SkillInput): Promise<CommitResult> {
-    // 시뮬레이션된 지연
-    await this.delay(100);
+  private async performCommit(input: SkillInput): Promise<CommitResult> {
+    try {
+      // 1. Git status 확인
+      const hasChanges = await this.gitClient.hasChanges();
 
-    // 실제 구현 시 git 명령어 실행
-    // git status, git add, git commit 등
+      if (!hasChanges) {
+        return {
+          skill: 'commit',
+          success: false,
+          message: '커밋할 변경사항이 없습니다.',
+          error: 'No changes to commit',
+        };
+      }
 
-    return {
-      skill: 'commit',
-      success: true,
-      message: '커밋이 완료되었습니다.',
-      hash: 'abc1234',
-      commitMessage: 'feat: 기능 추가',
-      filesChanged: 3,
-      linesChanged: { added: 45, removed: 10 },
-      nextSteps: ['git push', '/review-pr'],
-    };
+      // 2. 변경된 파일 목록 가져오기
+      const changedFiles = await this.gitClient.getChangedFiles();
+
+      // 3. Git diff 가져오기
+      const gitDiff = await this.gitClient.diff();
+
+      // 4. LLM으로 커밋 메시지 생성
+      const promptVariables = {
+        gitDiff,
+        changedFiles: JSON.stringify(changedFiles.map(f => f.path)),
+        workContext: '일반 작업',
+      };
+
+      const prompt = await this.promptBuilder.buildSkillPrompt('commit', promptVariables);
+
+      const commitMessage = await this.llmClient.complete({
+        model: 'claude-sonnet-4', // 커밋 메시지는 Sonnet 사용
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 500,
+        temperature: 0.3, // 낮은 temperature로 일관된 형식 유지
+      });
+
+      // 5. 파일 스테이징 (모든 변경 파일)
+      const filesToAdd = changedFiles.map(f => f.path);
+      await this.gitClient.add(filesToAdd);
+
+      // 6. Git commit 실행
+      const commitResult = await this.gitClient.commit(commitMessage.trim());
+
+      if (!commitResult.success) {
+        return {
+          skill: 'commit',
+          success: false,
+          message: '커밋 실패',
+          error: commitResult.error || 'Unknown error',
+        };
+      }
+
+      // 7. 성공 결과 반환
+      return {
+        skill: 'commit',
+        success: true,
+        message: '커밋이 완료되었습니다.',
+        hash: commitResult.hash,
+        commitMessage: commitMessage.trim(),
+        filesChanged: filesToAdd.length,
+        linesChanged: {
+          added: 0, // TODO: git diff --numstat 파싱으로 계산
+          removed: 0,
+        },
+        nextSteps: ['git push', '/review-pr'],
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to perform commit: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   private async performTest(_input: SkillInput): Promise<TestResult> {
