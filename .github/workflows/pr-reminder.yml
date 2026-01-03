@@ -1,0 +1,108 @@
+name: PR Reminder
+
+on:
+  schedule:
+    - cron: '0 9 * * 1-5'  # 평일 오전 9시 (UTC) = 오후 6시 (KST)
+  workflow_dispatch:
+
+permissions:
+  pull-requests: read
+  issues: write
+
+jobs:
+  remind:
+    name: Send PR Review Reminders
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get Pending PRs
+        id: pending-prs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              sort: 'created',
+              direction: 'asc'
+            });
+
+            const now = new Date();
+            const pendingPRs = prs.filter(pr => {
+              // Draft PR 제외
+              if (pr.draft) return false;
+
+              // 생성 후 24시간 이상 경과
+              const created = new Date(pr.created_at);
+              const hoursSinceCreation = (now - created) / (1000 * 60 * 60);
+              return hoursSinceCreation >= 24;
+            });
+
+            if (pendingPRs.length === 0) {
+              console.log('No pending PRs found');
+              return { hasPRs: false };
+            }
+
+            const prList = pendingPRs.map(pr => {
+              const created = new Date(pr.created_at);
+              const days = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+              return `- [#${pr.number}](${pr.html_url}) ${pr.title} (${days}일 전, @${pr.user.login})`;
+            }).join('\n');
+
+            console.log(`Found ${pendingPRs.length} pending PRs`);
+            return { hasPRs: true, prList, count: pendingPRs.length };
+
+      - name: Post Summary
+        if: fromJson(steps.pending-prs.outputs.result).hasPRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = ${{ steps.pending-prs.outputs.result }};
+
+            // GitHub Job Summary에 기록
+            await core.summary
+              .addHeading('📋 Pending PR Review Reminder')
+              .addRaw(`**${result.count}개의 PR이 리뷰를 기다리고 있습니다:**\n\n${result.prList}`)
+              .write();
+
+      - name: Send Slack Reminder
+        if: fromJson(steps.pending-prs.outputs.result).hasPRs && vars.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "📋 PR Review Reminder",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ fromJson(steps.pending-prs.outputs.result).count }}개의 PR이 리뷰를 기다리고 있습니다.\n\n${{ fromJson(steps.pending-prs.outputs.result).prList }}"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View All PRs"
+                      },
+                      "url": "https://github.com/${{ github.repository }}/pulls"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

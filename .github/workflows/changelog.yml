@@ -1,0 +1,64 @@
+name: Changelog Generator
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Changelog
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v4
+        with:
+          configuration: .github/changelog-config.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+          toTag: ${{ github.event.release.tag_name || inputs.version || 'HEAD' }}
+
+      - name: Update CHANGELOG.md
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "모든 주요 변경사항이 이 파일에 기록됩니다." >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+          fi
+
+          # 새 버전 정보를 파일 상단에 추가
+          VERSION="${{ github.event.release.tag_name || inputs.version || 'Unreleased' }}"
+          DATE=$(date +%Y-%m-%d)
+
+          {
+            head -4 CHANGELOG.md
+            echo "## [$VERSION] - $DATE"
+            echo ""
+            echo "${{ steps.changelog.outputs.changelog }}"
+            echo ""
+            tail -n +5 CHANGELOG.md
+          } > CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+
+      - name: Commit Changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "docs: update CHANGELOG for ${{ github.event.release.tag_name || inputs.version }}"
+          git push

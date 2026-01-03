@@ -2,6 +2,11 @@
 
 [![CI Pipeline](https://github.com/krdn/claude-code-auto/actions/workflows/ci.yml/badge.svg)](https://github.com/krdn/claude-code-auto/actions/workflows/ci.yml)
 [![PR Validation](https://github.com/krdn/claude-code-auto/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/krdn/claude-code-auto/actions/workflows/pr-validation.yml)
+[![CodeQL](https://github.com/krdn/claude-code-auto/actions/workflows/codeql.yml/badge.svg)](https://github.com/krdn/claude-code-auto/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/gh/krdn/claude-code-auto/branch/main/graph/badge.svg)](https://codecov.io/gh/krdn/claude-code-auto)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 
 > **AI가 개발의 전 과정을 수행하고, 사용자가 오케스트레이터로서 감독하는 협업 체계**
 
