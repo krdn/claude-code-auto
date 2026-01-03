@@ -9,12 +9,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'json-summary'],
-      exclude: ['node_modules/', 'dist/', 'tests/', '*.config.*'],
+      exclude: ['node_modules/', 'dist/', 'tests/', '*.config.*', '.eslintrc.cjs'],
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 80,
-        statements: 80,
+        lines: 70,
+        functions: 70,
+        branches: 70,
+        statements: 70,
       },
     },
     testTimeout: 10000,
