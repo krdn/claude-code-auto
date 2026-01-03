@@ -40,7 +40,7 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         uses: anthropics/claude-code-action@beta
         with:
-          use_oauth: true
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           timeout_minutes: "10"
           direct_prompt: |
             이 PR의 코드 변경사항을 리뷰해주세요. 한국어로 간결하게 답변하고, 다음 항목에 집중해주세요:
