@@ -38,14 +38,12 @@ export interface GitCommitResult {
  */
 export class GitClient {
   private git: SimpleGit;
-  private readonly workingDir: string;
 
   /**
    * GitClient 생성자
    * @param workingDir - Git 저장소 경로
    */
   constructor(workingDir: string) {
-    this.workingDir = workingDir;
     this.git = simpleGit(workingDir);
   }
 

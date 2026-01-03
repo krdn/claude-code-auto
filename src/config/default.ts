@@ -13,6 +13,11 @@ export interface AgentConfig {
 }
 
 /**
+ * LLM 인증 방식
+ */
+export type LlmAuthMethod = 'api-key' | 'cli';
+
+/**
  * 전체 설정 구조
  */
 export interface OrchestratorConfig {
@@ -20,8 +25,12 @@ export interface OrchestratorConfig {
   llm: {
     /** API 제공자 */
     provider: 'anthropic';
-    /** API 키 */
+    /** 인증 방식: 'api-key' (API 키) 또는 'cli' (로컬 Claude CLI) */
+    authMethod: LlmAuthMethod;
+    /** API 키 (authMethod='api-key'일 때만 필요) */
     apiKey: string;
+    /** CLI 경로 (authMethod='cli'일 때만 사용) */
+    cliPath?: string;
   };
   /** Agent 설정 */
   agents: {
@@ -65,7 +74,9 @@ export interface OrchestratorConfig {
 export const defaultConfig: OrchestratorConfig = {
   llm: {
     provider: 'anthropic',
+    authMethod: (process.env.LLM_AUTH_METHOD as LlmAuthMethod) || 'api-key',
     apiKey: process.env.ANTHROPIC_API_KEY || '',
+    cliPath: process.env.CLAUDE_CLI_PATH || 'claude',
   },
   agents: {
     planner: {

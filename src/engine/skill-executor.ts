@@ -243,7 +243,7 @@ export class SkillExecutor {
 
   // ==================== 실제 실행 메서드 ====================
 
-  private async performCommit(input: SkillInput): Promise<CommitResult> {
+  private async performCommit(_input: SkillInput): Promise<CommitResult> {
     try {
       // 1. Git status 확인
       const hasChanges = await this.gitClient.hasChanges();

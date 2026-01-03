@@ -36,6 +36,11 @@ function getEnvironmentConfig(env: Environment): Partial<OrchestratorConfig> {
     case 'test':
       return {
         // 테스트 환경에서는 가장 빠른 모델 사용
+        llm: {
+          provider: 'anthropic',
+          authMethod: 'api-key', // 테스트에서는 API 키 방식 (시뮬레이션)
+          apiKey: process.env.ANTHROPIC_API_KEY || 'test-dummy-key', // 테스트용 더미 키
+        },
         agents: {
           planner: {
             model: 'claude-haiku-4',

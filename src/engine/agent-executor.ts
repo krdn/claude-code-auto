@@ -322,7 +322,7 @@ export class AgentExecutor {
   /**
    * Planner LLM 응답 파싱
    */
-  private parsePlannerResponse(llmResponse: string, input: AgentInput): PlanResult {
+  private parsePlannerResponse(_llmResponse: string, input: AgentInput): PlanResult {
     // TODO: 실제 파싱 로직 구현
     // LLM 응답을 마크다운에서 구조화된 PlanResult로 변환
     // 임시로 기본 구조 반환
@@ -351,7 +351,7 @@ export class AgentExecutor {
   /**
    * Coder LLM 응답 파싱
    */
-  private parseCoderResponse(llmResponse: string, attempts: number): ImplementationResult {
+  private parseCoderResponse(_llmResponse: string, attempts: number): ImplementationResult {
     // TODO: 실제 파싱 로직 구현
     // 임시로 기본 구조 반환
     return {
@@ -376,7 +376,7 @@ export class AgentExecutor {
   /**
    * Reviewer LLM 응답 파싱
    */
-  private parseReviewerResponse(llmResponse: string): ReviewResult {
+  private parseReviewerResponse(_llmResponse: string): ReviewResult {
     // TODO: 실제 파싱 로직 구현
     // 임시로 기본 구조 반환
     return {
