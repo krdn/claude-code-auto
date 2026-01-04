@@ -63,7 +63,10 @@ export class LlmClient {
     } catch (error) {
       // CLI 실패 시 API 키로 폴백
       if (this.fallbackEnabled && this.fallbackClient) {
-        console.warn('[LlmClient] CLI 실패, API 키로 폴백:', error instanceof Error ? error.message : error);
+        console.warn(
+          '[LlmClient] CLI 실패, API 키로 폴백:',
+          error instanceof Error ? error.message : error
+        );
         return await this.fallbackClient.complete(params);
       }
       // 폴백 불가능하면 에러 전파
@@ -74,9 +77,7 @@ export class LlmClient {
   /**
    * 스트리밍 완성 요청
    */
-  async *completeStream(
-    params: CompleteParams
-  ): AsyncGenerator<string, void, unknown> {
+  async *completeStream(params: CompleteParams): AsyncGenerator<string, void, unknown> {
     yield* this.client.completeStream(params);
   }
 

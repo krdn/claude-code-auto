@@ -78,10 +78,7 @@ function getEnvironmentConfig(env: Environment): Partial<OrchestratorConfig> {
 /**
  * Deep merge 헬퍼 함수
  */
-function deepMerge<T extends Record<string, any>>(
-  target: T,
-  source: Partial<T>
-): T {
+function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
   const output = { ...target };
 
   for (const key in source) {

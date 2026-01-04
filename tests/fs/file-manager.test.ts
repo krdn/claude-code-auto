@@ -82,10 +82,7 @@ describe('FileManager', () => {
 
       expect(result.success).toBe(true);
 
-      const written = await fs.readFile(
-        path.join(tempDir, 'nested/dir/file.txt'),
-        'utf-8'
-      );
+      const written = await fs.readFile(path.join(tempDir, 'nested/dir/file.txt'), 'utf-8');
       expect(written).toBe(content);
     });
 
@@ -211,10 +208,7 @@ describe('FileManager', () => {
       expect(result.success).toBe(true);
       expect(result.data?.backupPath).toBeDefined();
 
-      const backupContent = await fs.readFile(
-        result.data!.backupPath!,
-        'utf-8'
-      );
+      const backupContent = await fs.readFile(result.data!.backupPath!, 'utf-8');
       expect(backupContent).toContain('Line 1');
     });
 
@@ -316,9 +310,9 @@ describe('FileManager', () => {
 
       expect(Array.isArray(files)).toBe(true);
       expect(files.length).toBe(3);
-      expect(files.some((f) => f.endsWith('index.ts'))).toBe(true);
-      expect(files.some((f) => f.endsWith('utils.ts'))).toBe(true);
-      expect(files.some((f) => f.endsWith('test.ts'))).toBe(true);
+      expect(files.some(f => f.endsWith('index.ts'))).toBe(true);
+      expect(files.some(f => f.endsWith('utils.ts'))).toBe(true);
+      expect(files.some(f => f.endsWith('test.ts'))).toBe(true);
     });
 
     it('should exclude patterns', async () => {
@@ -329,7 +323,7 @@ describe('FileManager', () => {
       });
 
       expect(files.length).toBe(2);
-      expect(files.some((f) => f.endsWith('test.ts'))).toBe(false);
+      expect(files.some(f => f.endsWith('test.ts'))).toBe(false);
     });
   });
 
@@ -358,12 +352,12 @@ describe('FileManager', () => {
       expect(tree?.children).toBeDefined();
 
       // maxDepth=2이므로 src 디렉토리는 자식을 가져야 함
-      const srcNode = tree!.children!.find((c) => c.name === 'src');
+      const srcNode = tree!.children!.find(c => c.name === 'src');
       expect(srcNode).toBeDefined();
       expect(srcNode?.children).toBeDefined();
 
       // utils는 depth=2이므로 자식이 없어야 함 (maxDepth=2)
-      const utilsNode = srcNode!.children!.find((c) => c.name === 'utils');
+      const utilsNode = srcNode!.children!.find(c => c.name === 'utils');
       if (utilsNode) {
         // utils는 있지만 자식은 없어야 함 (depth=2에서 멈춤)
         expect(utilsNode.children).toBeUndefined();

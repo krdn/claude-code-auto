@@ -24,6 +24,11 @@ import { PromptBuilder } from '../llm/prompt-builder.js';
 import { FileManager } from '../fs/file-manager.js';
 import { TestRunner } from '../test/test-runner.js';
 import { config } from '../config/index.js';
+import {
+  parsePlannerResponseFromMarkdown,
+  parseCoderResponseFromMarkdown,
+  parseReviewerResponseFromMarkdown,
+} from '../llm/response-parser.js';
 
 /** 에이전트 실행기 설정 */
 export interface AgentExecutorConfig {
@@ -168,6 +173,15 @@ export class AgentExecutor {
         temperature: config.agents.planner.temperature,
       });
 
+      // 디버그: LLM 원본 응답 출력
+      if (this.config.debug) {
+        console.log(
+          `[${agentConfig.name}] LLM Response (first 500 chars):`,
+          llmResponse.substring(0, 500)
+        );
+        console.log(`[${agentConfig.name}] Full response length:`, llmResponse.length);
+      }
+
       // LLM 응답 파싱
       const result = this.parsePlannerResponse(llmResponse, input);
 
@@ -204,7 +218,9 @@ export class AgentExecutor {
         attempts++;
 
         if (this.config.debug) {
-          console.log(`[${agentConfig.name}] Attempt ${attempts}/${this.config.maxHealingAttempts}`);
+          console.log(
+            `[${agentConfig.name}] Attempt ${attempts}/${this.config.maxHealingAttempts}`
+          );
         }
 
         // 시뮬레이션 모드일 경우
@@ -216,6 +232,11 @@ export class AgentExecutor {
           const currentFiles = await this.readAffectedFiles(input.plan);
           const codebaseInfo = await this.getCodebaseInfo();
 
+          if (this.config.debug) {
+            console.log(`[${agentConfig.name}] currentFiles length:`, currentFiles.length);
+            console.log(`[${agentConfig.name}] codebaseInfo length:`, codebaseInfo.length);
+          }
+
           const promptVariables = {
             plan: JSON.stringify(input.plan),
             projectContext: JSON.stringify(input.context || {}),
@@ -225,6 +246,11 @@ export class AgentExecutor {
 
           const prompt = await this.promptBuilder.buildAgentPrompt('coder', promptVariables);
 
+          if (this.config.debug) {
+            console.log(`[${agentConfig.name}] Final prompt length:`, prompt.length);
+            console.log(`[${agentConfig.name}] Calling LLM...`);
+          }
+
           const llmResponse = await this.llmClient.complete({
             model: this.mapModelType(agentConfig.model),
             messages: [{ role: 'user', content: prompt }],
@@ -232,13 +258,17 @@ export class AgentExecutor {
             temperature: config.agents.coder.temperature,
           });
 
-          // TODO: LLM 응답에서 파일 변경사항을 실제로 적용
-          // 현재는 파일 변경을 하지 않으므로 기존 테스트가 그대로 통과할 것
+          if (this.config.debug) {
+            console.log(
+              `[${agentConfig.name}] LLM Response received (length: ${llmResponse.length})`
+            );
+          }
 
           // 코드 검증 실행 (테스트, 타입 체크, Lint)
           const validationResults = await this.runValidation();
 
-          result = this.parseCoderResponse(llmResponse, attempts, validationResults);
+          // LLM 응답 파싱 및 파일 적용
+          result = await this.parseCoderResponse(llmResponse, attempts, validationResults);
         }
 
         // 테스트 통과 시 루프 종료
@@ -424,16 +454,42 @@ export class AgentExecutor {
     };
   }> {
     try {
+      if (this.config.debug) {
+        console.log('[Validation] Starting validation...');
+      }
+
       // 1. 테스트 실행
+      if (this.config.debug) {
+        console.log('[Validation] Running tests...');
+      }
       const testResult = await this.testRunner.runTests({
         framework: 'vitest',
       });
+      if (this.config.debug) {
+        console.log(
+          '[Validation] Tests completed:',
+          testResult.success,
+          `(${testResult.passed}/${testResult.total})`
+        );
+      }
 
       // 2. 타입 체크
+      if (this.config.debug) {
+        console.log('[Validation] Running type check...');
+      }
       const typeCheckResult = await this.testRunner.runTypeCheck();
+      if (this.config.debug) {
+        console.log('[Validation] Type check completed:', typeCheckResult.success);
+      }
 
       // 3. Lint 체크
+      if (this.config.debug) {
+        console.log('[Validation] Running lint...');
+      }
       const lintResult = await this.testRunner.runLint();
+      if (this.config.debug) {
+        console.log('[Validation] Lint completed:', lintResult.success);
+      }
 
       const testsPassed = testResult.success;
       const typeCheckPassed = typeCheckResult.success;
@@ -478,43 +534,61 @@ export class AgentExecutor {
     }
   }
 
-  // TODO: LLM 응답에서 파일 변경사항 적용하는 메서드
-  // parseCoderResponse 구현 시 추가 예정
+  /**
+   * 파일 변경사항을 실제 파일 시스템에 적용
+   *
+   * @param fileChanges 파일 변경사항 배열
+   */
+  private async applyFileChanges(
+    fileChanges: Array<{
+      path: string;
+      content: string;
+      changeType: 'create' | 'modify' | 'delete';
+    }>
+  ): Promise<void> {
+    for (const change of fileChanges) {
+      try {
+        if (change.changeType === 'delete') {
+          // 파일 삭제 (현재 FileManager에 deleteFile이 없으므로 스킵)
+          if (this.config.debug) {
+            console.log(`[AgentExecutor] Skipping file deletion: ${change.path}`);
+          }
+          continue;
+        }
+
+        // 파일 생성 또는 수정
+        await this.fileManager.writeFile(change.path, change.content, {
+          overwrite: true,
+          createDir: true,
+        });
+
+        if (this.config.debug) {
+          console.log(
+            `[AgentExecutor] Applied ${change.changeType} to ${change.path} (${change.content.split('\n').length} lines)`
+          );
+        }
+      } catch (error) {
+        // 파일 쓰기 실패 시 로그만 출력하고 계속 진행
+        console.error(
+          `[AgentExecutor] Failed to apply changes to ${change.path}:`,
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
+  }
 
   /**
    * Planner LLM 응답 파싱
    */
-  private parsePlannerResponse(_llmResponse: string, input: AgentInput): PlanResult {
-    // TODO: 실제 파싱 로직 구현
-    // LLM 응답을 마크다운에서 구조화된 PlanResult로 변환
-    // 임시로 기본 구조 반환
-    return {
-      role: 'planner',
-      success: true,
-      message: '계획이 수립되었습니다.',
-      title: `작업: ${input.request}`,
-      objective: input.request,
-      affectedFiles: [],
-      phases: [
-        {
-          number: 1,
-          title: '기본 구현',
-          tasks: [
-            { id: 'task-1', description: 'LLM 응답 파싱 구현 필요', completed: false },
-          ],
-        },
-      ],
-      risks: [],
-      approvalStatus: 'pending',
-      nextStep: 'coder',
-    };
+  private parsePlannerResponse(llmResponse: string, input: AgentInput): PlanResult {
+    return parsePlannerResponseFromMarkdown(llmResponse, input);
   }
 
   /**
-   * Coder LLM 응답 파싱
+   * Coder LLM 응답 파싱 및 파일 적용
    */
-  private parseCoderResponse(
-    _llmResponse: string,
+  private async parseCoderResponse(
+    llmResponse: string,
     attempts: number,
     validationResults?: {
       testsPassed: boolean;
@@ -531,9 +605,16 @@ export class AgentExecutor {
         details?: string;
       };
     }
-  ): ImplementationResult {
-    // TODO: 실제 파싱 로직 구현
-    // 임시로 기본 구조 반환
+  ): Promise<ImplementationResult> {
+    // 1. LLM 응답 파싱
+    const parsed = parseCoderResponseFromMarkdown(llmResponse);
+
+    // 2. 파일 변경사항 실제 적용
+    if (parsed.fileChanges.length > 0) {
+      await this.applyFileChanges(parsed.fileChanges);
+    }
+
+    // 3. 검증 결과와 결합
     const testResults = validationResults?.testResults || {
       passed: true,
       total: 0,
@@ -548,9 +629,14 @@ export class AgentExecutor {
       role: 'coder',
       success: testResults.passed,
       message: testResults.passed
-        ? '구현이 완료되었습니다.'
+        ? parsed.message || '구현이 완료되었습니다.'
         : `구현 검증 실패 (시도 ${attempts}/${this.config.maxHealingAttempts}):\n${testResults.details || ''}`,
-      files: [],
+      files: parsed.fileChanges.map(fc => ({
+        path: fc.path,
+        changeType: fc.changeType,
+        summary: fc.summary || '파일 변경',
+        linesChanged: fc.linesChanged || { added: 0, removed: 0 },
+      })),
       testResults,
       healingAttempts: attempts,
       nextStep: testResults.passed ? 'reviewer' : 'coder',
@@ -560,33 +646,8 @@ export class AgentExecutor {
   /**
    * Reviewer LLM 응답 파싱
    */
-  private parseReviewerResponse(_llmResponse: string): ReviewResult {
-    // TODO: 실제 파싱 로직 구현
-    // 임시로 기본 구조 반환
-    return {
-      role: 'reviewer',
-      success: true,
-      message: '코드 리뷰가 완료되었습니다.',
-      score: 85,
-      summary: {
-        quality: 'pass',
-        security: 'pass',
-        performance: 'pass',
-        testCoverage: 'pass',
-      },
-      positives: [],
-      criticalIssues: [],
-      suggestions: [],
-      securityCheck: {
-        sqlInjection: 'na',
-        xss: 'safe',
-        csrf: 'na',
-        authentication: 'proper',
-        sensitiveData: 'none',
-      },
-      decision: 'approved',
-      nextStep: 'complete',
-    };
+  private parseReviewerResponse(llmResponse: string): ReviewResult {
+    return parseReviewerResponseFromMarkdown(llmResponse);
   }
 
   // ==================== 시뮬레이션 메서드 ====================

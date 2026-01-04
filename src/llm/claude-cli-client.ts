@@ -82,9 +82,7 @@ export class ClaudeCliClient {
    * @param params - 완성 요청 파라미터
    * @param onChunk - 청크 수신 시 콜백
    */
-  async *completeStream(
-    params: CompleteParams
-  ): AsyncGenerator<string, void, unknown> {
+  async *completeStream(params: CompleteParams): AsyncGenerator<string, void, unknown> {
     // Claude CLI는 현재 스트리밍을 직접 지원하지 않음
     // 전체 응답을 한 번에 반환
     const response = await this.complete(params);
@@ -101,17 +99,21 @@ export class ClaudeCliClient {
 
       // Claude Code CLI 실행
       // echo "prompt" | claude --print --model haiku --output-format text
-      const { stdout, stderr } = await execa(this.cliPath, [
-        '--print', // 비대화형 모드
-        '--model',
-        this.mapModelToCli(params.model),
-        '--output-format',
-        'text', // 텍스트 출력
-        '--no-session-persistence', // 세션 저장 안 함
-      ], {
-        input: prompt,
-        timeout: 300000, // 5분 타임아웃
-      });
+      const { stdout, stderr } = await execa(
+        this.cliPath,
+        [
+          '--print', // 비대화형 모드
+          '--model',
+          this.mapModelToCli(params.model),
+          '--output-format',
+          'text', // 텍스트 출력
+          '--no-session-persistence', // 세션 저장 안 함
+        ],
+        {
+          input: prompt,
+          timeout: 300000, // 5분 타임아웃
+        }
+      );
 
       // Claude Code는 stderr에 경고를 출력할 수 있으므로 stdout이 있으면 성공
       if (stdout && stdout.trim()) {
@@ -153,9 +155,10 @@ export class ClaudeCliClient {
     // 메시지 추가
     for (const message of params.messages) {
       const role = message.role === 'user' ? 'User' : 'Assistant';
-      const content = typeof message.content === 'string'
-        ? message.content
-        : message.content.map(c => 'text' in c ? c.text : '').join('\n');
+      const content =
+        typeof message.content === 'string'
+          ? message.content
+          : message.content.map(c => ('text' in c ? c.text : '')).join('\n');
 
       prompt += `${role}: ${content}\n\n`;
     }
