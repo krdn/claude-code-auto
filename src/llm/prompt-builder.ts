@@ -58,10 +58,7 @@ export class PromptBuilder {
    * });
    * ```
    */
-  async buildAgentPrompt(
-    agentType: AgentType,
-    variables: PromptVariables
-  ): Promise<string> {
+  async buildAgentPrompt(agentType: AgentType, variables: PromptVariables): Promise<string> {
     const templatePath = join(this.promptsDir, 'agents', `${agentType}.md`);
     const template = await this.loadTemplate(templatePath);
     return this.substituteVariables(template, variables);
@@ -83,10 +80,7 @@ export class PromptBuilder {
    * });
    * ```
    */
-  async buildSkillPrompt(
-    skillType: SkillType,
-    variables: PromptVariables
-  ): Promise<string> {
+  async buildSkillPrompt(skillType: SkillType, variables: PromptVariables): Promise<string> {
     const templatePath = join(this.promptsDir, 'skills', `${skillType}.md`);
     const template = await this.loadTemplate(templatePath);
     return this.substituteVariables(template, variables);
@@ -99,10 +93,7 @@ export class PromptBuilder {
    * @param variables - 프롬프트 변수
    * @returns 완성된 프롬프트
    */
-  async buildCustomPrompt(
-    templatePath: string,
-    variables: PromptVariables
-  ): Promise<string> {
+  async buildCustomPrompt(templatePath: string, variables: PromptVariables): Promise<string> {
     const fullPath = join(this.promptsDir, templatePath);
     const template = await this.loadTemplate(fullPath);
     return this.substituteVariables(template, variables);
@@ -133,10 +124,7 @@ export class PromptBuilder {
    *
    * {{variableName}} 형식의 플레이스홀더를 실제 값으로 치환합니다.
    */
-  private substituteVariables(
-    template: string,
-    variables: PromptVariables
-  ): string {
+  private substituteVariables(template: string, variables: PromptVariables): string {
     let result = template;
 
     for (const [key, value] of Object.entries(variables)) {

@@ -46,10 +46,7 @@ export class FileManager {
   /**
    * 파일 읽기
    */
-  async readFile(
-    filePath: string,
-    options: ReadFileOptions = {}
-  ): Promise<FileOperationResult> {
+  async readFile(filePath: string, options: ReadFileOptions = {}): Promise<FileOperationResult> {
     try {
       const absolutePath = this.resolvePath(filePath);
       const encoding = options.encoding || 'utf-8';
@@ -262,10 +259,7 @@ export class FileManager {
   /**
    * 파일 검색
    */
-  async searchFiles(
-    basePath: string,
-    options: SearchFilesOptions = {}
-  ): Promise<string[]> {
+  async searchFiles(basePath: string, options: SearchFilesOptions = {}): Promise<string[]> {
     try {
       const absoluteBasePath = this.resolvePath(basePath);
       const pattern = options.pattern || '**/*';
@@ -302,10 +296,7 @@ export class FileManager {
   /**
    * 디렉토리 트리 생성
    */
-  async getDirectoryTree(
-    dirPath: string,
-    maxDepth: number = 3
-  ): Promise<DirectoryTreeNode | null> {
+  async getDirectoryTree(dirPath: string, maxDepth: number = 3): Promise<DirectoryTreeNode | null> {
     try {
       const absolutePath = this.resolvePath(dirPath);
       return await this.buildTreeNode(absolutePath, 0, maxDepth);
@@ -323,9 +314,7 @@ export class FileManager {
    * 상대 경로를 절대 경로로 변환
    */
   private resolvePath(filePath: string): string {
-    return path.isAbsolute(filePath)
-      ? filePath
-      : path.resolve(this.config.workingDir, filePath);
+    return path.isAbsolute(filePath) ? filePath : path.resolve(this.config.workingDir, filePath);
   }
 
   /**

@@ -72,10 +72,7 @@ export class TestRunner {
   /**
    * Vitest 실행
    */
-  private async runVitest(
-    options: TestRunOptions,
-    timeout: number
-  ): Promise<TestRunResult> {
+  private async runVitest(options: TestRunOptions, timeout: number): Promise<TestRunResult> {
     const args = ['run'];
 
     // 패턴 지정
@@ -117,10 +114,7 @@ export class TestRunner {
   /**
    * Jest 실행
    */
-  private async runJest(
-    options: TestRunOptions,
-    timeout: number
-  ): Promise<TestRunResult> {
+  private async runJest(options: TestRunOptions, timeout: number): Promise<TestRunResult> {
     const args = [];
 
     // 패턴 지정
@@ -162,11 +156,7 @@ export class TestRunner {
   /**
    * Vitest 출력 파싱
    */
-  private parseVitestOutput(
-    stdout: string,
-    stderr: string,
-    success: boolean
-  ): TestRunResult {
+  private parseVitestOutput(stdout: string, stderr: string, success: boolean): TestRunResult {
     try {
       // Vitest JSON 출력 파싱
       const jsonMatch = stdout.match(/\{[\s\S]*"testResults"[\s\S]*\}/);
@@ -188,11 +178,7 @@ export class TestRunner {
   /**
    * Vitest 텍스트 출력 파싱 (폴백)
    */
-  private parseVitestText(
-    stdout: string,
-    stderr: string,
-    success: boolean
-  ): TestRunResult {
+  private parseVitestText(stdout: string, stderr: string, success: boolean): TestRunResult {
     // 텍스트 출력에서 테스트 결과 추출
     const output = stdout + stderr;
 
@@ -236,20 +222,14 @@ export class TestRunner {
 
       for (const test of fileResult.assertionResults || []) {
         const status =
-          test.status === 'passed'
-            ? 'passed'
-            : test.status === 'failed'
-              ? 'failed'
-              : 'skipped';
+          test.status === 'passed' ? 'passed' : test.status === 'failed' ? 'failed' : 'skipped';
 
         cases.push({
           name: test.title || test.name,
           file: fileResult.name,
           status,
           duration: test.duration || 0,
-          error: test.failureMessages
-            ? { message: test.failureMessages.join('\n') }
-            : undefined,
+          error: test.failureMessages ? { message: test.failureMessages.join('\n') } : undefined,
         });
 
         totalTests++;
@@ -264,9 +244,9 @@ export class TestRunner {
       files.push({
         path: fileResult.name,
         total: cases.length,
-        passed: cases.filter((c) => c.status === 'passed').length,
-        failed: cases.filter((c) => c.status === 'failed').length,
-        skipped: cases.filter((c) => c.status === 'skipped').length,
+        passed: cases.filter(c => c.status === 'passed').length,
+        failed: cases.filter(c => c.status === 'failed').length,
+        skipped: cases.filter(c => c.status === 'skipped').length,
         duration: fileDuration,
         cases,
       });
@@ -286,11 +266,7 @@ export class TestRunner {
   /**
    * Jest 출력 파싱
    */
-  private parseJestOutput(
-    stdout: string,
-    _stderr: string,
-    success: boolean
-  ): TestRunResult {
+  private parseJestOutput(stdout: string, _stderr: string, success: boolean): TestRunResult {
     try {
       const data = JSON.parse(stdout);
       return this.convertVitestResult(data, success); // Jest 형식도 비슷함

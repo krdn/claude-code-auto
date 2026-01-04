@@ -57,7 +57,7 @@ export class AnthropicClient {
     const isTestKey = apiKey === 'test-dummy-key';
 
     // 테스트/시뮬레이션용으로 빈 키나 테스트 키 허용
-    const effectiveKey = (isEmptyKey || isTestKey) ? 'sk-ant-test-dummy-key-for-simulation' : apiKey;
+    const effectiveKey = isEmptyKey || isTestKey ? 'sk-ant-test-dummy-key-for-simulation' : apiKey;
 
     this.client = new Anthropic({
       apiKey: effectiveKey,
@@ -97,9 +97,7 @@ export class AnthropicClient {
         });
 
         // 텍스트 응답 추출
-        const textContent = response.content.find(
-          (block) => block.type === 'text'
-        );
+        const textContent = response.content.find(block => block.type === 'text');
 
         if (!textContent || textContent.type !== 'text') {
           throw new Error('No text content in response');
@@ -146,7 +144,7 @@ export class AnthropicClient {
    * 지연 함수 (재시도용)
    */
   private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
@@ -154,9 +152,7 @@ export class AnthropicClient {
    * @param params - 요청 파라미터
    * @returns AsyncIterable<string>
    */
-  async *completeStream(
-    params: CompleteParams
-  ): AsyncIterable<string> {
+  async *completeStream(params: CompleteParams): AsyncIterable<string> {
     const stream = await this.client.messages.create({
       model: this.normalizeModel(params.model),
       messages: params.messages,
@@ -167,10 +163,7 @@ export class AnthropicClient {
     });
 
     for await (const event of stream) {
-      if (
-        event.type === 'content_block_delta' &&
-        event.delta.type === 'text_delta'
-      ) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
         yield event.delta.text;
       }
     }
