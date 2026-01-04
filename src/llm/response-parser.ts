@@ -7,13 +7,10 @@
 
 import type {
   PlanResult,
-  ImplementationResult,
   ReviewResult,
   AffectedFile,
   Phase,
-  Task,
   Risk,
-  FileChange,
   ReviewSummary,
   ReviewIssue,
   SecurityCheck,
@@ -22,23 +19,8 @@ import type {
 
 // ==================== 정규식 패턴 (미리 컴파일) ====================
 
-/** 헤딩 패턴 (## Title 또는 ### Title) */
-const HEADING_PATTERN = /^(#{2,3})\s+(.+)$/gm;
-
-/** 코드 블록 패턴 (```language\ncode\n```) */
-const CODE_BLOCK_PATTERN = /```(\w+)?\n([\s\S]*?)```/g;
-
 /** 파일 경로 패턴 (백틱으로 감싼 경로: `src/file.ts`) */
 const BACKTICK_PATH_PATTERN = /`([a-zA-Z0-9/_.-]+\.[a-zA-Z0-9]+)`/g;
-
-/** 테이블 행 패턴 */
-const TABLE_ROW_PATTERN = /\|(.+)\|/g;
-
-/** 리스트 항목 패턴 (-, *, 1., 2. 등) */
-const LIST_ITEM_PATTERN = /^[\s]*[-*]|\d+\.\s+(.+)$/gm;
-
-/** 파일 경로 헤딩 패턴 (#### src/file.ts) */
-const FILE_HEADING_PATTERN = /^#{3,4}\s+([a-zA-Z0-9/_.-]+\.[a-zA-Z0-9]+)/gm;
 
 // ==================== 마크다운 파싱 유틸리티 ====================
 
@@ -56,7 +38,6 @@ export function extractSection(markdown: string, heading: string): string | null
   // 대소문자 무시 검색
   const lines = markdown.split('\n');
   let startIndex = -1;
-  let headingLevel = 0;
 
   // 헤딩 찾기
   for (let i = 0; i < lines.length; i++) {
@@ -64,12 +45,10 @@ export function extractSection(markdown: string, heading: string): string | null
     const match = line.match(/^(#{1,6})\s+(.+)$/);
 
     if (match) {
-      const level = match[1].length;
       const title = match[2].trim();
 
       if (title.toLowerCase().includes(headingText.toLowerCase())) {
         startIndex = i + 1;
-        headingLevel = level;
         break;
       }
     }
