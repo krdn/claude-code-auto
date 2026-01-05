@@ -345,10 +345,8 @@ npm run dev
 ---
 
 ## 참고 영상
+https://youtu.be/pEhZTzYhCD8?si=RdJfqcqBwUhCzksK
 
-[![Claude Code Interview Mode](https://img.youtube.com/vi/OzezWml65NU/maxresdefault.jpg)](https://www.youtube.com/watch?v=OzezWml65NU)
-
-**[Claude Code Interview Mode: AI와 협업하여 완벽한 프로젝트 기획하기!](https://www.youtube.com/watch?v=OzezWml65NU)**
 
 ---
 
