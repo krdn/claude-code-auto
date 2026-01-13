@@ -79,33 +79,33 @@ export class GitClient {
     const files: GitFileStatus[] = [];
 
     // Modified files
-    status.modified.forEach((path) => {
+    status.modified.forEach(path => {
       files.push({ path, status: 'M', staged: false });
     });
 
     // Created files
-    status.created.forEach((path) => {
+    status.created.forEach(path => {
       files.push({ path, status: 'A', staged: false });
     });
 
     // Deleted files
-    status.deleted.forEach((path) => {
+    status.deleted.forEach(path => {
       files.push({ path, status: 'D', staged: false });
     });
 
     // Renamed files
-    status.renamed.forEach((file) => {
+    status.renamed.forEach(file => {
       files.push({ path: file.to, status: 'R', staged: false });
     });
 
     // Not added files
-    status.not_added.forEach((path) => {
+    status.not_added.forEach(path => {
       files.push({ path, status: '??', staged: false });
     });
 
     // Staged files
-    status.staged.forEach((path) => {
-      const existing = files.find((f) => f.path === path);
+    status.staged.forEach(path => {
+      const existing = files.find(f => f.path === path);
       if (existing) {
         existing.staged = true;
       } else {
@@ -134,10 +134,7 @@ export class GitClient {
    * const fileDiff = await git.diff({ file: 'src/index.ts' });
    * ```
    */
-  async diff(options?: {
-    staged?: boolean;
-    file?: string;
-  }): Promise<string> {
+  async diff(options?: { staged?: boolean; file?: string }): Promise<string> {
     try {
       const args: string[] = [];
 
@@ -231,9 +228,7 @@ export class GitClient {
         await this.git.push();
       }
     } catch (error) {
-      throw new Error(
-        `Failed to push: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`Failed to push: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -251,9 +246,7 @@ export class GitClient {
         await this.git.pull();
       }
     } catch (error) {
-      throw new Error(
-        `Failed to pull: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`Failed to pull: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -292,9 +285,7 @@ export class GitClient {
   async log(maxCount: number = 10): Promise<string> {
     try {
       const log = await this.git.log({ maxCount });
-      return log.all
-        .map((commit) => `${commit.hash.substring(0, 7)} ${commit.message}`)
-        .join('\n');
+      return log.all.map(commit => `${commit.hash.substring(0, 7)} ${commit.message}`).join('\n');
     } catch (error) {
       throw new Error(
         `Failed to get log: ${error instanceof Error ? error.message : String(error)}`
