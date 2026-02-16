@@ -65,10 +65,10 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
-    "dotenv": "^17.2.3",
+    "@anthropic-ai/sdk": "^0.74.0",
+    "dotenv": "^17.3.1",
     "execa": "^9.6.1",
-    "glob": "^13.0.0",
-    "simple-git": "^3.30.0"
+    "glob": "^13.0.3",
+    "simple-git": "^3.31.1"
   }
 }
